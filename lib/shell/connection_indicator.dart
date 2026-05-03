@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers/app_providers.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// Small chip showing the current source's connection state. Hidden entirely
 /// when the active source is the simulator or no source is wired up.
@@ -13,28 +14,30 @@ class ConnectionIndicator extends ConsumerWidget {
     if (state == null) return const SizedBox.shrink();
 
     final mode = ref.watch(sourceConfigProvider.select((c) => c.mode));
-    final base = mode == SourceMode.wifi ? 'WiFi' : 'BT';
+    final l10n = AppLocalizations.of(context)!;
+    final transport = mode == SourceMode.wifi ? 'WiFi' : 'BT';
+    final isWifi = mode == SourceMode.wifi;
 
     final (icon, color, label) = switch (state) {
       SourceConnectionState.disconnected => (
-        mode == SourceMode.wifi ? Icons.wifi_off : Icons.bluetooth_disabled,
+        isWifi ? Icons.wifi_off : Icons.bluetooth_disabled,
         Colors.grey,
-        '$base : déconnecté',
+        l10n.connStatusDisconnected(transport),
       ),
       SourceConnectionState.connecting => (
-        mode == SourceMode.wifi ? Icons.wifi : Icons.bluetooth_searching,
+        isWifi ? Icons.wifi : Icons.bluetooth_searching,
         Colors.orange,
-        '$base : connexion…',
+        l10n.connStatusConnecting(transport),
       ),
       SourceConnectionState.connected => (
-        mode == SourceMode.wifi ? Icons.wifi : Icons.bluetooth_connected,
+        isWifi ? Icons.wifi : Icons.bluetooth_connected,
         Colors.green,
-        '$base : connecté',
+        l10n.connStatusConnected(transport),
       ),
       SourceConnectionState.error => (
         Icons.error_outline,
         Colors.red,
-        '$base : erreur',
+        l10n.connStatusError(transport),
       ),
     };
 

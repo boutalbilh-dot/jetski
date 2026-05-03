@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../features/depth/depth_screen.dart';
 import '../features/map/map_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../l10n/generated/app_localizations.dart';
 import 'connection_indicator.dart';
 
 class HomeShell extends StatefulWidget {
@@ -16,6 +17,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       body: Stack(
         children: [
@@ -33,10 +35,13 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.water), label: 'Profondeur'),
-          NavigationDestination(icon: Icon(Icons.map), label: 'Carte'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Réglages'),
+        destinations: [
+          NavigationDestination(
+              icon: const Icon(Icons.water), label: l10n.navDepth),
+          NavigationDestination(
+              icon: const Icon(Icons.map), label: l10n.navMap),
+          NavigationDestination(
+              icon: const Icon(Icons.settings), label: l10n.navSettings),
         ],
       ),
     );

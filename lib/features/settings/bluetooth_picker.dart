@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import '../../core/services/bluetooth_service.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 /// Modal dialog that lists currently bonded Bluetooth devices and returns the
-/// MAC address of the one the user picks (or null if cancelled). Devices are
-/// expected to have been paired via the OS Settings — we don't initiate pairing.
+/// MAC address of the one the user picks (or null if cancelled). Pairing is
+/// expected to have happened in the OS Settings — we don't initiate it.
 class BluetoothPickerDialog extends StatefulWidget {
   const BluetoothPickerDialog({super.key});
 
@@ -23,8 +24,9 @@ class _BluetoothPickerDialogState extends State<BluetoothPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: const Text('Choisir un sondeur'),
+      title: Text(l10n.pickerTitle),
       content: SizedBox(
         width: double.maxFinite,
         child: FutureBuilder<List<BluetoothDevice>>(
@@ -40,21 +42,16 @@ class _BluetoothPickerDialogState extends State<BluetoothPickerDialog> {
               return Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'Impossible de lister les appareils Bluetooth.\n'
-                  '${snap.error}',
+                  l10n.pickerError(snap.error.toString()),
                   style: const TextStyle(color: Colors.red),
                 ),
               );
             }
             final devices = snap.data ?? const [];
             if (devices.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  "Aucun appareil appairé.\n"
-                  "Appairez d'abord le sondeur depuis les réglages "
-                  'Bluetooth de votre téléphone.',
-                ),
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(l10n.pickerEmpty),
               );
             }
             return ListView.builder(
@@ -64,7 +61,7 @@ class _BluetoothPickerDialogState extends State<BluetoothPickerDialog> {
                 final d = devices[i];
                 return ListTile(
                   leading: const Icon(Icons.bluetooth),
-                  title: Text(d.name ?? '(sans nom)'),
+                  title: Text(d.name ?? l10n.noName),
                   subtitle: Text(d.address),
                   onTap: () => Navigator.of(context).pop(d.address),
                 );
@@ -76,7 +73,7 @@ class _BluetoothPickerDialogState extends State<BluetoothPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+          child: Text(l10n.cancel),
         ),
       ],
     );

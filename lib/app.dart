@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'shell/home_shell.dart';
 
 class JetskiApp extends StatelessWidget {
@@ -11,6 +12,8 @@ class JetskiApp extends StatelessWidget {
       theme: AppTheme.light(),
       home: const HomeShell(),
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
     );
   }
 }

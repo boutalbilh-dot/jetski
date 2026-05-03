@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/providers/app_providers.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'track_layer.dart';
 
 class MapScreen extends ConsumerWidget {
@@ -18,8 +19,9 @@ class MapScreen extends ConsumerWidget {
         ? LatLng(pos.latitude, pos.longitude)
         : const LatLng(46.81, -71.21);
 
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Carte')),
+      appBar: AppBar(title: Text(l10n.mapTitle)),
       body: FlutterMap(
         options: MapOptions(initialCenter: center, initialZoom: 14),
         children: [

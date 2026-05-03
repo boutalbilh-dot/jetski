@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.6
   flutter_riverpod: ^2.5.1
   flutter_blue_plus: ^1.32.0
@@ -22,6 +24,7 @@ dependencies:
   vibration: ^2.0.0
   audioplayers: ^6.0.0
   shared_preferences: ^2.2.2
+  intl: any
 
 dev_dependencies:
   flutter_test:
@@ -32,5 +35,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/sounds/

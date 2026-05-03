@@ -3,14 +3,24 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/services/simulation_service.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'bluetooth_picker.dart';
 import 'threshold_slider.dart';
+
+String scenarioLabel(AppLocalizations l10n, SimulationScenario s) =>
+    switch (s) {
+      SimulationScenario.approach => l10n.scenarioApproach,
+      SimulationScenario.suddenDanger => l10n.scenarioSuddenDanger,
+      SimulationScenario.unstable => l10n.scenarioUnstable,
+      SimulationScenario.manual => l10n.scenarioManual,
+    };
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final th = ref.watch(thresholdsProvider);
     final thNotifier = ref.read(thresholdsProvider.notifier);
     final sim = ref.watch(simSelectionProvider);
@@ -21,45 +31,45 @@ class SettingsScreen extends ConsumerWidget {
     final sourceNotifier = ref.read(sourceConfigProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Réglages')),
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
         children: [
           ThresholdSlider(
-            label: 'Seuil avertissement',
+            label: l10n.thresholdWarning,
             value: th.warningMeters,
             min: th.dangerMeters + 0.1,
             max: 5.0,
             onChanged: thNotifier.setWarning,
           ),
           ThresholdSlider(
-            label: 'Seuil danger',
+            label: l10n.thresholdDanger,
             value: th.dangerMeters,
             min: 0.1,
             max: th.warningMeters - 0.1,
             onChanged: thNotifier.setDanger,
           ),
           const Divider(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('Source de profondeur',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text(l10n.sourceSectionTitle,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SegmentedButton<SourceMode>(
-              segments: const [
+              segments: [
                 ButtonSegment(
                     value: SourceMode.simulation,
-                    label: Text('Sim'),
-                    icon: Icon(Icons.science_outlined)),
+                    label: Text(l10n.sourceModeSim),
+                    icon: const Icon(Icons.science_outlined)),
                 ButtonSegment(
                     value: SourceMode.bluetooth,
-                    label: Text('Bluetooth'),
-                    icon: Icon(Icons.bluetooth)),
+                    label: Text(l10n.sourceModeBt),
+                    icon: const Icon(Icons.bluetooth)),
                 ButtonSegment(
                     value: SourceMode.wifi,
-                    label: Text('WiFi'),
-                    icon: Icon(Icons.wifi)),
+                    label: Text(l10n.sourceModeWifi),
+                    icon: const Icon(Icons.wifi)),
               ],
               selected: {source.mode},
               onSelectionChanged: (s) => sourceNotifier.setMode(s.first),
@@ -92,12 +102,12 @@ class SettingsScreen extends ConsumerWidget {
             ),
           const Divider(),
           ListTile(
-            title: const Text('Unité'),
+            title: Text(l10n.unitLabel),
             trailing: ToggleButtons(
               isSelected: [unit == DepthUnit.meters, unit == DepthUnit.feet],
               onPressed: (i) => unitNotifier
                   .setUnit(i == 0 ? DepthUnit.meters : DepthUnit.feet),
-              children: const [Text('Mètres'), Text('Pieds')],
+              children: [Text(l10n.unitMeters), Text(l10n.unitFeet)],
             ),
           ),
         ],
@@ -116,28 +126,30 @@ class _SimulationPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const ListTile(
-          title: Text('Mode simulation'),
-          subtitle: Text('Émet des profondeurs fictives selon un scénario.'),
+        ListTile(
+          title: Text(l10n.simulationPanelTitle),
+          subtitle: Text(l10n.simulationPanelSubtitle),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              const Text('Scénario : '),
+              Text(l10n.scenarioLabel),
               const SizedBox(width: 8),
-              DropdownButton<String>(
-                value: scenario.name,
+              DropdownButton<SimulationScenario>(
+                value: scenario,
                 items: SimulationScenario.values
-                    .map((s) =>
-                        DropdownMenuItem(value: s.name, child: Text(s.name)))
+                    .map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(scenarioLabel(l10n, s)),
+                        ))
                     .toList(),
                 onChanged: (v) {
-                  if (v == null) return;
-                  onScenarioChanged(SimulationScenario.values.byName(v));
+                  if (v != null) onScenarioChanged(v);
                 },
               ),
             ],
@@ -160,14 +172,15 @@ class _BluetoothPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         ListTile(
-          title: const Text('Sondeur Bluetooth'),
-          subtitle: Text(address ?? 'Aucun appareil sélectionné'),
+          title: Text(l10n.bluetoothPanelTitle),
+          subtitle: Text(address ?? l10n.noDeviceSelected),
           trailing: TextButton.icon(
             icon: const Icon(Icons.search),
-            label: const Text('Choisir'),
+            label: Text(l10n.chooseDevice),
             onPressed: onPick,
           ),
         ),
@@ -176,7 +189,7 @@ class _BluetoothPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextButton.icon(
               icon: const Icon(Icons.link_off),
-              label: const Text("Oublier l'appareil"),
+              label: Text(l10n.forgetDevice),
               onPressed: onForget,
             ),
           ),
@@ -220,22 +233,19 @@ class _WifiPanelState extends State<_WifiPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const ListTile(
-          title: Text('Sondeur WiFi (NMEA UDP)'),
-          subtitle: Text(
-            'Connectez votre téléphone au WiFi du sondeur (Deeper, '
-            'Lowrance, passerelle marine…) puis activez l\'envoi NMEA '
-            '0183 sur UDP dans son application.',
-          ),
+        ListTile(
+          title: Text(l10n.wifiPanelTitle),
+          subtitle: Text(l10n.wifiPanelSubtitle),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Row(
             children: [
-              const Text('Port UDP : '),
+              Text(l10n.wifiPortLabel),
               const SizedBox(width: 8),
               SizedBox(
                 width: 80,
@@ -250,8 +260,8 @@ class _WifiPanelState extends State<_WifiPanel> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Text('(défaut : $kDefaultWifiNmeaPort)',
-                  style: TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(l10n.wifiPortDefaultHint(kDefaultWifiNmeaPort),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ],
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/services/alert_engine.dart';
 import '../../core/theme/app_theme.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 const double _metersPerFoot = 0.3048;
 
@@ -28,6 +29,7 @@ class DepthDisplay extends StatelessWidget {
       final value = unit == DepthUnit.feet ? depth! / _metersPerFoot : depth!;
       text = value.toStringAsFixed(1);
     }
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       key: const Key('depth-bg'),
       decoration: BoxDecoration(color: bg),
@@ -35,8 +37,8 @@ class DepthDisplay extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Profondeur',
-              style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 2)),
+          Text(l10n.depthLabel,
+              style: const TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 2)),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

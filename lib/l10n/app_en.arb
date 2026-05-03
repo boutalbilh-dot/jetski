@@ -1,0 +1,61 @@
+{
+  "@@locale": "en",
+  "navDepth": "Depth",
+  "@navDepth": {"description": "Bottom-nav label for the depth screen"},
+  "navMap": "Map",
+  "navSettings": "Settings",
+  "mapTitle": "Map",
+  "depthLabel": "DEPTH",
+  "settingsTitle": "Settings",
+  "thresholdWarning": "Warning threshold",
+  "thresholdDanger": "Danger threshold",
+  "sourceSectionTitle": "Depth source",
+  "sourceModeSim": "Sim",
+  "sourceModeBt": "Bluetooth",
+  "sourceModeWifi": "WiFi",
+  "simulationPanelTitle": "Simulation mode",
+  "simulationPanelSubtitle": "Emits fake depths following a chosen scenario.",
+  "scenarioLabel": "Scenario:",
+  "scenarioApproach": "Gradual approach",
+  "scenarioSuddenDanger": "Sudden danger",
+  "scenarioUnstable": "Unstable reading",
+  "scenarioManual": "Manual",
+  "bluetoothPanelTitle": "Bluetooth sounder",
+  "noDeviceSelected": "No device selected",
+  "chooseDevice": "Choose",
+  "forgetDevice": "Forget device",
+  "wifiPanelTitle": "WiFi sounder (NMEA UDP)",
+  "wifiPanelSubtitle": "Connect your phone to the sounder's WiFi (Deeper, Lowrance, marine gateway…) then enable NMEA 0183 over UDP in its app.",
+  "wifiPortLabel": "UDP port:",
+  "wifiPortDefaultHint": "(default: {port})",
+  "@wifiPortDefaultHint": {
+    "placeholders": {"port": {"type": "int"}}
+  },
+  "unitLabel": "Unit",
+  "unitMeters": "Meters",
+  "unitFeet": "Feet",
+  "pickerTitle": "Choose a sounder",
+  "pickerError": "Could not list Bluetooth devices.\n{error}",
+  "@pickerError": {
+    "placeholders": {"error": {"type": "String"}}
+  },
+  "pickerEmpty": "No paired devices.\nFirst pair the sounder from your phone's Bluetooth settings.",
+  "noName": "(no name)",
+  "cancel": "Cancel",
+  "connStatusDisconnected": "{transport}: disconnected",
+  "@connStatusDisconnected": {
+    "placeholders": {"transport": {"type": "String"}}
+  },
+  "connStatusConnecting": "{transport}: connecting…",
+  "@connStatusConnecting": {
+    "placeholders": {"transport": {"type": "String"}}
+  },
+  "connStatusConnected": "{transport}: connected",
+  "@connStatusConnected": {
+    "placeholders": {"transport": {"type": "String"}}
+  },
+  "connStatusError": "{transport}: error",
+  "@connStatusError": {
+    "placeholders": {"transport": {"type": "String"}}
+  }
+}
