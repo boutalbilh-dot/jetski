@@ -336,8 +336,8 @@ import 'package:projet_jetski/core/models/nmea_sentence.dart';
 void main() {
   group('NmeaSentence.tryParse', () {
     test('parses a valid $DPT sentence', () {
-      // Checksum of 'SDDPT,3.5,0.5' is 0x1D
-      final s = NmeaSentence.tryParse(r'$SDDPT,3.5,0.5*1D');
+      // Checksum of 'SDDPT,3.5,0.5' is 0x54
+      final s = NmeaSentence.tryParse(r'$SDDPT,3.5,0.5*54');
       expect(s, isNotNull);
       expect(s!.talker, 'SD');
       expect(s.type, 'DPT');
@@ -362,7 +362,7 @@ void main() {
     });
 
     test('handles trailing CR/LF', () {
-      final s = NmeaSentence.tryParse('\$SDDPT,3.5,0.5*1D\r\n');
+      final s = NmeaSentence.tryParse('\$SDDPT,3.5,0.5*54\r\n');
       expect(s, isNotNull);
       expect(s!.type, 'DPT');
     });
@@ -456,19 +456,18 @@ import 'package:projet_jetski/core/services/nmea_parser.dart';
 void main() {
   group('NmeaParser.depthMeters', () {
     test('reads metres from $DPT', () {
-      // $SDDPT,3.5,0.5*1D — depth 3.5 m, offset 0.5 m
-      expect(NmeaParser.depthMeters(r'$SDDPT,3.5,0.5*1D'), 3.5);
+      // $SDDPT,3.5,0.5*54 — depth 3.5 m, offset 0.5 m
+      expect(NmeaParser.depthMeters(r'$SDDPT,3.5,0.5*54'), 3.5);
     });
 
     test('reads metres from $DBT (uses M field, not feet)', () {
-      // $SDDBT,11.5,f,3.50,M,1.91,F*XX — checksum below
-      // Body "SDDBT,11.5,f,3.50,M,1.91,F" XOR = 0x18
-      expect(NmeaParser.depthMeters(r'$SDDBT,11.5,f,3.50,M,1.91,F*18'), 3.50);
+      // Body "SDDBT,11.5,f,3.50,M,1.91,F" XOR = 0x3C
+      expect(NmeaParser.depthMeters(r'$SDDBT,11.5,f,3.50,M,1.91,F*3C'), 3.50);
     });
 
     test('returns null on $GLL (irrelevant sentence)', () {
-      // $GPGLL,4807.038,N,01131.000,E,123519,A*32 (real example)
-      expect(NmeaParser.depthMeters(r'$GPGLL,4807.038,N,01131.000,E,123519,A*32'), isNull);
+      // GLL is a position sentence, not a depth one — depthMeters must return null
+      expect(NmeaParser.depthMeters(r'$GPGLL,4807.038,N,01131.000,E,123519,A*25'), isNull);
     });
 
     test('returns null on garbage', () {
@@ -476,9 +475,8 @@ void main() {
     });
 
     test('returns null when depth field is empty', () {
-      // $SDDPT,,0.5*XX — empty depth
-      // Checksum of 'SDDPT,,0.5' = 0x33
-      expect(NmeaParser.depthMeters(r'$SDDPT,,0.5*33'), isNull);
+      // Checksum of 'SDDPT,,0.5' = 0x7C — empty depth field
+      expect(NmeaParser.depthMeters(r'$SDDPT,,0.5*7C'), isNull);
     });
   });
 }
