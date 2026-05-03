@@ -16,7 +16,7 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  test('persists incoming depths combined with latest position', () async {
+  test('batches depths into one transaction per flush window', () async {
     final log = DepthLogService();
     await log.openInMemory();
 
@@ -30,14 +30,17 @@ void main() {
       positionStream: pos.stream.map((p) => p == null ? null : (p.lat, p.lng)),
       onCommit: () => bumped++,
       source: SampleSource.simulated,
+      flushInterval: const Duration(milliseconds: 30),
     );
-    logger.start();
+    await logger.start();
 
     pos.add(_Pos(46.81, -71.21));
     depth.add(2.5);
-    await Future<void>.delayed(const Duration(milliseconds: 5));
     depth.add(0.4);
-    await Future<void>.delayed(const Duration(milliseconds: 5));
+    // Wait for one flush interval to elapse.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(bumped, 1, reason: 'two samples → one flush → one commit');
 
     await logger.stop();
     await depth.close();
@@ -48,7 +51,58 @@ void main() {
     expect(all[0].depthMeters, 2.5);
     expect(all[0].latitude, 46.81);
     expect(all[1].depthMeters, 0.4);
-    expect(bumped, 2);
+    await log.close();
+  });
+
+  test('start() awaits open() to avoid the sample-vs-open race', () async {
+    final log = DepthLogService();
+    // Note: NOT pre-opened — start() must open it.
+    final depth = StreamController<double>();
+    final pos = StreamController<_Pos?>();
+
+    final logger = DepthLogger(
+      logService: log,
+      depthStream: depth.stream,
+      positionStream: pos.stream.map((p) => p == null ? null : (p.lat, p.lng)),
+      onCommit: () {},
+      source: SampleSource.simulated,
+      flushInterval: const Duration(milliseconds: 10),
+    );
+    // Force an in-memory open since start() always opens the disk DB.
+    await log.openInMemory();
+    await logger.start();
+    depth.add(1.0);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await logger.stop();
+    await depth.close();
+    await pos.close();
+    expect((await log.all()).single.depthMeters, 1.0);
+    await log.close();
+  });
+
+  test('flushes the remainder of the buffer on stop()', () async {
+    final log = DepthLogService();
+    await log.openInMemory();
+    final depth = StreamController<double>();
+    final pos = StreamController<_Pos?>();
+    final logger = DepthLogger(
+      logService: log,
+      depthStream: depth.stream,
+      positionStream: pos.stream.map((p) => p == null ? null : (p.lat, p.lng)),
+      onCommit: () {},
+      source: SampleSource.simulated,
+      flushInterval: const Duration(seconds: 10),
+    );
+    await logger.start();
+    depth.add(3.0);
+    depth.add(2.0);
+    // Yield so the stream listener pulls the events into the buffer before stop.
+    await Future<void>.delayed(Duration.zero);
+    // Stop before any periodic flush would have fired.
+    await logger.stop();
+    expect((await log.all()).map((s) => s.depthMeters), [3.0, 2.0]);
+    await depth.close();
+    await pos.close();
     await log.close();
   });
 }

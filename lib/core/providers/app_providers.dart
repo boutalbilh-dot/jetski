@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,13 @@ import '../services/depth_source.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../services/simulation_service.dart';
+
+/// Centralised SharedPreferences keys.
+class _PrefsKeys {
+  static const thresholdWarn = 'th.warn';
+  static const thresholdDanger = 'th.danger';
+  static const unit = 'unit';
+}
 
 class Thresholds {
   final double warningMeters;
@@ -24,38 +32,41 @@ class Thresholds {
 }
 
 class ThresholdsNotifier extends StateNotifier<Thresholds> {
-  static const _kWarn = 'th.warn';
-  static const _kDanger = 'th.danger';
   ThresholdsNotifier() : super(const Thresholds()) {
     _load();
   }
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
     state = Thresholds(
-      warningMeters: p.getDouble(_kWarn) ?? 1.0,
-      dangerMeters: p.getDouble(_kDanger) ?? 0.5,
+      warningMeters: p.getDouble(_PrefsKeys.thresholdWarn) ?? 1.0,
+      dangerMeters: p.getDouble(_PrefsKeys.thresholdDanger) ?? 0.5,
     );
   }
   Future<void> setWarning(double v) async {
     state = state.copyWith(warningMeters: v);
     final p = await SharedPreferences.getInstance();
-    await p.setDouble(_kWarn, v);
+    await p.setDouble(_PrefsKeys.thresholdWarn, v);
   }
   Future<void> setDanger(double v) async {
     state = state.copyWith(dangerMeters: v);
     final p = await SharedPreferences.getInstance();
-    await p.setDouble(_kDanger, v);
+    await p.setDouble(_PrefsKeys.thresholdDanger, v);
   }
 }
 
 final thresholdsProvider =
     StateNotifierProvider<ThresholdsNotifier, Thresholds>((ref) => ThresholdsNotifier());
 
-/// Currently selected depth source. Defaults to simulation.
+/// Currently selected depth source. Long-lived: scenario changes are pushed in
+/// via setScenario() rather than recreating the source (which would tear down
+/// the depth stream, alert engine, and logger).
 final depthSourceProvider = Provider<DepthSource>((ref) {
-  final sim = ref.watch(simSelectionProvider);
-  // For v0.1 we always return a simulation source. v0.2 will add Bluetooth selection.
-  return SimulationService(scenario: sim.scenario);
+  final initial = ref.read(simSelectionProvider).scenario;
+  final src = SimulationService(scenario: initial);
+  ref.listen<SimSelection>(simSelectionProvider, (_, next) {
+    src.setScenario(next.scenario);
+  });
+  return src;
 });
 
 final locationServiceProvider = Provider((ref) => LocationService());
@@ -66,14 +77,14 @@ final depthLogServiceProvider = Provider((ref) {
   return svc;
 });
 
-/// Underlying depth stream from the active source, started lazily and stopped
-/// on dispose. Exposed as a [Provider] so other providers can compose it
-/// without going through the deprecated `StreamProvider.stream` getter.
-/// The simulator and the future Bluetooth source both expose broadcast
-/// streams, so multiple listeners are safe.
+/// Underlying depth stream from the active source. The simulator and the
+/// future Bluetooth source both expose broadcast streams, so multiple
+/// listeners are safe.
 final depthBroadcastProvider = Provider<Stream<double>>((ref) {
   final src = ref.watch(depthSourceProvider);
-  unawaited(src.start().catchError((_) {}));
+  unawaited(src.start().catchError((Object e, StackTrace st) {
+    debugPrint('depthSource.start() failed: $e\n$st');
+  }));
   ref.onDispose(() => unawaited(src.stop()));
   return src.depthMeters;
 });
@@ -83,19 +94,23 @@ final depthStreamProvider = StreamProvider<double>((ref) {
   return ref.watch(depthBroadcastProvider);
 });
 
-/// Long-lived AlertEngine — preserved across depth events so hysteresis works.
-/// Recreated when thresholds change (acceptable: new thresholds reset hysteresis).
+/// Long-lived AlertEngine. Thresholds are pushed via setThresholds() rather
+/// than recreating the engine, so hysteresis state survives slider drags.
 final alertEngineProvider = Provider<AlertEngine>((ref) {
-  final t = ref.watch(thresholdsProvider);
-  return AlertEngine(
-    warningMeters: t.warningMeters,
-    dangerMeters: t.dangerMeters,
+  final initial = ref.read(thresholdsProvider);
+  final engine = AlertEngine(
+    warningMeters: initial.warningMeters,
+    dangerMeters: initial.dangerMeters,
   );
+  ref.listen<Thresholds>(thresholdsProvider, (_, next) {
+    engine.setThresholds(
+      warningMeters: next.warningMeters,
+      dangerMeters: next.dangerMeters,
+    );
+  });
+  return engine;
 });
 
-/// Stream of alert levels derived from the depth stream + engine. Sits one
-/// layer below [alertLevelProvider] so consumers that need the raw stream
-/// (e.g. [DepthLogger]) can use it without a deprecated `.stream` getter.
 final alertLevelStreamProvider = Provider<Stream<AlertLevel>>((ref) {
   final engine = ref.watch(alertEngineProvider);
   final source = ref.watch(depthBroadcastProvider);
@@ -111,8 +126,7 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService(RealBackend());
 });
 
-/// Listens to alertLevelProvider transitions and fires notifications. Created
-/// once at app startup; never rebuilds.
+/// Listens to alertLevelProvider transitions and fires notifications.
 final alertNotifierProvider = Provider<void>((ref) {
   final svc = ref.watch(notificationServiceProvider);
   ref.listen(alertLevelProvider, (prev, next) {
@@ -126,18 +140,17 @@ final alertNotifierProvider = Provider<void>((ref) {
 enum DepthUnit { meters, feet }
 
 class UnitNotifier extends StateNotifier<DepthUnit> {
-  static const _key = 'unit';
   UnitNotifier() : super(DepthUnit.meters) {
     _load();
   }
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
-    state = DepthUnit.values.byName(p.getString(_key) ?? 'meters');
+    state = DepthUnit.values.byName(p.getString(_PrefsKeys.unit) ?? 'meters');
   }
   Future<void> setUnit(DepthUnit u) async {
     state = u;
     final p = await SharedPreferences.getInstance();
-    await p.setString(_key, u.name);
+    await p.setString(_PrefsKeys.unit, u.name);
   }
 }
 
@@ -160,11 +173,9 @@ class SimSelectionNotifier extends StateNotifier<SimSelection> {
 final simSelectionProvider =
     StateNotifierProvider<SimSelectionNotifier, SimSelection>((ref) => SimSelectionNotifier());
 
-/// Underlying position stream from [LocationService], wrapped so consumers can
-/// compose it without going through `StreamProvider.stream`. Yields a single
-/// null then closes when permission is denied (matching the previous
-/// [StreamProvider] behaviour). Made broadcast so multiple consumers
-/// (`positionStreamProvider` + `depthLoggerProvider`) can subscribe.
+/// Underlying position stream from [LocationService], adapted to a broadcast
+/// stream so multiple consumers (`positionStreamProvider` + `depthLoggerProvider`)
+/// can subscribe to a single permission prompt + position stream.
 final positionBroadcastProvider = Provider<Stream<Position?>>((ref) {
   final svc = ref.watch(locationServiceProvider);
   final controller = StreamController<Position?>.broadcast();
@@ -194,28 +205,28 @@ final positionStreamProvider = StreamProvider<Position?>((ref) {
   return ref.watch(positionBroadcastProvider);
 });
 
-/// All persisted samples (for the track layer). Refreshes on each new add via
-/// [depthLogVersionProvider].
+/// Wall-clock instant the current app session began. Used to scope the map
+/// track to the current ride, so old persisted samples don't bloat memory.
+final sessionStartProvider = Provider<DateTime>((ref) => DateTime.now().toUtc());
+
+/// Samples from the current session, refreshed when the logger commits a batch.
 final allSamplesProvider = FutureProvider<List<DepthSample>>((ref) async {
-  ref.watch(depthLogVersionProvider); // refresh trigger
+  ref.watch(depthLogVersionProvider);
   final svc = ref.watch(depthLogServiceProvider);
-  return svc.all();
+  final start = ref.watch(sessionStartProvider);
+  return svc.range(from: start, to: DateTime.now().toUtc());
 });
 
-/// Bumped each time a new sample is persisted, to invalidate allSamplesProvider.
+/// Bumped each time the logger commits a batch, to invalidate allSamplesProvider.
 final depthLogVersionProvider = StateProvider<int>((ref) => 0);
 
 /// Activates depth logging when watched. Lifetime tied to ProviderScope.
 final depthLoggerProvider = Provider<DepthLogger>((ref) {
   final log = ref.watch(depthLogServiceProvider);
-  // Open the DB lazily; the logger awaits each add so a missing open() throws.
-  unawaited(log.open());
   final depth = ref.watch(depthBroadcastProvider);
   final pos = ref.watch(positionBroadcastProvider).map(
         (p) => p == null ? null : (p.latitude, p.longitude),
       );
-  // v0.1: depth is always sourced from the simulator. v0.2 will branch on
-  // Bluetooth availability.
   final logger = DepthLogger(
     logService: log,
     depthStream: depth,
@@ -224,7 +235,9 @@ final depthLoggerProvider = Provider<DepthLogger>((ref) {
         ref.read(depthLogVersionProvider.notifier).update((v) => v + 1),
     source: SampleSource.simulated,
   );
-  logger.start();
+  unawaited(logger.start().catchError((Object e, StackTrace st) {
+    debugPrint('depthLogger.start() failed: $e\n$st');
+  }));
   ref.onDispose(logger.stop);
   return logger;
 });

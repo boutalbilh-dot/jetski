@@ -1,6 +1,13 @@
 enum SampleSource { real, simulated }
 
 class DepthSample {
+  static const tableName = 'depth_samples';
+  static const colTimestamp = 'timestamp_ms';
+  static const colDepth = 'depth_m';
+  static const colLat = 'lat';
+  static const colLng = 'lng';
+  static const colSource = 'source';
+
   final DateTime timestamp;
   final double depthMeters;
   final double? latitude;
@@ -15,21 +22,24 @@ class DepthSample {
     this.longitude,
   });
 
+  static int encodeTimestamp(DateTime t) => t.toUtc().millisecondsSinceEpoch;
+
   Map<String, Object?> toMap() => {
-        'timestamp_ms': timestamp.toUtc().millisecondsSinceEpoch,
-        'depth_m': depthMeters,
-        'lat': latitude,
-        'lng': longitude,
-        'source': source.name,
+        colTimestamp: encodeTimestamp(timestamp),
+        colDepth: depthMeters,
+        colLat: latitude,
+        colLng: longitude,
+        colSource: source.name,
       };
 
   factory DepthSample.fromMap(Map<String, Object?> m) => DepthSample(
-        timestamp:
-            DateTime.fromMillisecondsSinceEpoch(m['timestamp_ms']! as int, isUtc: true),
-        depthMeters: (m['depth_m']! as num).toDouble(),
-        latitude: (m['lat'] as num?)?.toDouble(),
-        longitude: (m['lng'] as num?)?.toDouble(),
-        source: SampleSource.values.byName(m['source']! as String),
+        timestamp: DateTime.fromMillisecondsSinceEpoch(
+            m[colTimestamp]! as int,
+            isUtc: true),
+        depthMeters: (m[colDepth]! as num).toDouble(),
+        latitude: (m[colLat] as num?)?.toDouble(),
+        longitude: (m[colLng] as num?)?.toDouble(),
+        source: SampleSource.values.byName(m[colSource]! as String),
       );
 
   @override

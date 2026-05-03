@@ -45,6 +45,37 @@ void main() {
       expect(engine.update(0.81), AlertLevel.warning);
     });
 
+    test('setThresholds preserves the current level (no hysteresis reset)', () {
+      engine.update(0.4); // -> danger
+      expect(engine.level, AlertLevel.danger);
+      engine.setThresholds(warningMeters: 1.5, dangerMeters: 0.8);
+      expect(engine.level, AlertLevel.danger,
+          reason: 'changing thresholds must not reset state');
+      // 0.85 > new danger (0.8) but new hysteresis floor is 0.8 + 0.3 = 1.1.
+      // Still danger.
+      expect(engine.update(0.85), AlertLevel.danger);
+      // 1.15 m clears danger into the warning band (still under 1.5 + 0.3).
+      expect(engine.update(1.15), AlertLevel.warning);
+    });
+
+    test('classify is stateless and ignores prior level', () {
+      expect(
+        AlertEngine.classify(
+            depthMeters: 0.3, warningMeters: 1.0, dangerMeters: 0.5),
+        AlertLevel.danger,
+      );
+      expect(
+        AlertEngine.classify(
+            depthMeters: 0.8, warningMeters: 1.0, dangerMeters: 0.5),
+        AlertLevel.warning,
+      );
+      expect(
+        AlertEngine.classify(
+            depthMeters: 2.0, warningMeters: 1.0, dangerMeters: 0.5),
+        AlertLevel.safe,
+      );
+    });
+
     test('emits onTransition only on level changes', () {
       final transitions = <AlertLevel>[];
       engine.onTransition = transitions.add;

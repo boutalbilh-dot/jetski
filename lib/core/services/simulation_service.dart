@@ -5,7 +5,7 @@ import 'depth_source.dart';
 enum SimulationScenario { approach, suddenDanger, unstable, manual }
 
 class SimulationService implements DepthSource {
-  final SimulationScenario scenario;
+  SimulationScenario _scenario;
   final Duration tickInterval;
   final _controller = StreamController<double>.broadcast();
   Timer? _timer;
@@ -14,16 +14,26 @@ class SimulationService implements DepthSource {
   final _rand = Random(42);
 
   SimulationService({
-    required this.scenario,
+    required SimulationScenario scenario,
     this.tickInterval = const Duration(milliseconds: 200),
-  });
+  }) : _scenario = scenario;
+
+  SimulationScenario get scenario => _scenario;
+
+  /// Switch the active scenario without restarting the service. Resets the
+  /// internal tick counter so each scenario gets its expected starting state.
+  void setScenario(SimulationScenario s) {
+    if (_scenario == s) return;
+    _scenario = s;
+    _tick = 0;
+  }
 
   @override
   Stream<double> get depthMeters => _controller.stream;
 
   void setManualDepth(double v) {
     _manual = v;
-    if (scenario == SimulationScenario.manual &&
+    if (_scenario == SimulationScenario.manual &&
         _timer != null &&
         !_controller.isClosed) {
       _controller.add(v);
@@ -49,7 +59,7 @@ class SimulationService implements DepthSource {
   }
 
   void _emit() {
-    final v = switch (scenario) {
+    final v = switch (_scenario) {
       SimulationScenario.approach => _approach(_tick),
       SimulationScenario.suddenDanger => _sudden(_tick),
       SimulationScenario.unstable => _unstable(),

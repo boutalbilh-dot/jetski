@@ -50,6 +50,23 @@ void main() {
       expect(svc, isA<DepthSource>());
     });
 
+    test('setScenario switches the active scenario without restarting', () async {
+      final svc = SimulationService(
+        scenario: SimulationScenario.manual,
+        tickInterval: const Duration(milliseconds: 5),
+      );
+      await svc.start();
+      svc.setManualDepth(2.0);
+      // Drain a couple of ticks at the manual value.
+      final manualSample = await svc.depthMeters.first;
+      expect(manualSample, 2.0);
+      svc.setScenario(SimulationScenario.suddenDanger);
+      // Tick was reset, so first ~30 ticks emit 3.0.
+      final afterSwitch = await svc.depthMeters.first;
+      expect(afterSwitch, 3.0);
+      await svc.stop();
+    });
+
     test('cannot start twice', () async {
       final svc = SimulationService(
         scenario: SimulationScenario.approach,
