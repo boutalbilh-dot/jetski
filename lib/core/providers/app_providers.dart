@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/depth_sample.dart';
 import '../services/alert_engine.dart';
 import '../services/depth_log_service.dart';
 import '../services/depth_source.dart';
@@ -140,3 +142,25 @@ class SimSelectionNotifier extends StateNotifier<SimSelection> {
 
 final simSelectionProvider =
     StateNotifierProvider<SimSelectionNotifier, SimSelection>((ref) => SimSelectionNotifier());
+
+/// Stream of GPS positions; null if permission denied.
+final positionStreamProvider = StreamProvider<Position?>((ref) async* {
+  final svc = ref.watch(locationServiceProvider);
+  final stream = await svc.start();
+  if (stream == null) {
+    yield null;
+    return;
+  }
+  yield* stream;
+});
+
+/// All persisted samples (for the track layer). Refreshes on each new add via
+/// [depthLogVersionProvider].
+final allSamplesProvider = FutureProvider<List<DepthSample>>((ref) async {
+  ref.watch(depthLogVersionProvider); // refresh trigger
+  final svc = ref.watch(depthLogServiceProvider);
+  return svc.all();
+});
+
+/// Bumped each time a new sample is persisted, to invalidate allSamplesProvider.
+final depthLogVersionProvider = StateProvider<int>((ref) => 0);
