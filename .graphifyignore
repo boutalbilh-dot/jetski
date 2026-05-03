@@ -1,0 +1,25 @@
+# Generated / scaffolding
+build/
+.dart_tool/
+.idea/
+.flutter-plugins-dependencies
+*.iml
+
+# Platform scaffolding (Flutter-generated, no information value)
+android/
+ios/
+lib/l10n/generated/
+
+# App icons & launch images (visual noise, no info value)
+**/ic_launcher.png
+**/AppIcon.appiconset/
+**/LaunchImage.imageset/
+
+# Audio assets (.wav misclassified as video — would trigger Whisper)
+assets/sounds/
+
+# graphify's own output
+graphify-out/
+
+# Claude Code config (not project code, would add noise to the graph)
+.claude/

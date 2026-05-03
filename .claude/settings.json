@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Users/finan/AppData/Local/Programs/Python/Python312/python.exe\" \"C:/Users/finan/Desktop/projet jetski/.claude/hooks/graphify-session-update.py\"",
+            "timeout": 30,
+            "statusMessage": "graphify: checking for changes..."
+          }
+        ]
+      }
+    ]
+  }
+}

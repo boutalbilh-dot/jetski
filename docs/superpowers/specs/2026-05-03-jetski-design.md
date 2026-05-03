@@ -20,12 +20,14 @@ Application mobile (iOS + Android) qui aide les propriétaires et locataires de 
 
 ### Inclus dans le MVP (v1)
 
-- Connexion Bluetooth à un sondeur de profondeur tiers (NMEA 0183)
+- Trois sources de profondeur interchangeables, sélectionnables dans les Réglages :
+  - **Bluetooth Classic SPP** vers un sondeur tiers émettant du NMEA 0183 (ex : Garmin Striker via module HC-05)
+  - **WiFi UDP** vers un sondeur castable émettant du NMEA 0183 (ex : Deeper PRO+ 2.0, port 10110 par défaut)
+  - **Mode simulation** — émetteur de profondeurs fake pour développer et démontrer l'app sans matériel (4 scénarios)
 - Affichage temps réel de la profondeur (grand chiffre, fond coloré selon seuil)
 - Alertes sonores + vibration en zone danger
 - Carte montrant la position GPS courante et la trace de la sortie en cours, colorée selon la profondeur
-- Réglages : seuils d'alerte, unités (m/ft), gestion connexion Bluetooth
-- **Mode simulation** — émetteur de profondeurs fake pour développer et démontrer l'app sans matériel
+- Réglages : seuils d'alerte, unités (m/ft), choix du mode de source, gestion connexion Bluetooth, port WiFi UDP
 - Persistence locale (SQLite) des sondages d'une sortie
 
 ### Reporté à v2
@@ -54,6 +56,7 @@ Application mobile (iOS + Android) qui aide les propriétaires et locataires de 
 | Framework | Flutter (Dart) | Un seul codebase iOS + Android |
 | State management | Riverpod | Mature, testable, idiomatique Flutter moderne |
 | Bluetooth | `flutter_blue_plus` (BLE) + `flutter_bluetooth_serial` (SPP Classic) | Couvre BLE et Classic — la majorité des sondeurs grand public émettent NMEA 0183 sur Bluetooth Classic SPP |
+| WiFi NMEA | UDP socket via `dart:io` (pas de package tiers) | Les sondeurs castables (Deeper PRO+ 2.0) et passerelles marines (Yacht Devices, Digital Yacht) émettent du NMEA 0183 sur UDP, port 10110 par défaut. Une socket UDP suffit, pas besoin de wrapper |
 | Parsing NMEA | Parser maison léger | Le format est simple ($DPT, $DBT, $GGA), un parser maison reste 200 lignes et permet une couverture des trames malformées sur mesure |
 | Carte | `flutter_map` + tuiles OpenStreetMap | Gratuit, sans clé API, bonne couverture Canada |
 | GPS | `geolocator` | Standard Flutter, gestion permissions intégrée |
@@ -72,12 +75,16 @@ Application mobile (iOS + Android) qui aide les propriétaires et locataires de 
 │  UI Layer  : écrans Carte / Profondeur / Réglages│
 │  State     : Riverpod (provider d'état)         │
 │  Services  :                                    │
-│    ├─ BluetoothService    (connexion sondeur)   │
+│    ├─ DepthSource (interface)                   │
+│    │     ├─ BluetoothService  (NMEA via SPP)    │
+│    │     ├─ WifiNmeaService   (NMEA via UDP)    │
+│    │     ├─ SimulationService (faux flux)       │
+│    │     └─ NullDepthSource   (no-op fallback)  │
 │    ├─ NmeaParser          ($DPT / $DBT)         │
-│    ├─ SimulationService   (faux flux dev/démo)  │
 │    ├─ LocationService     (GPS via geolocator)  │
 │    ├─ DepthLogService     (sauvegarde SQLite)   │
-│    └─ AlertEngine         (seuils + hystérésis) │
+│    ├─ AlertEngine         (seuils + hystérésis) │
+│    └─ NotificationService (vibration + son)     │
 │  Storage   : SQLite local (sqflite)             │
 └─────────────────────────────────────────────────┘
                        │
@@ -89,12 +96,16 @@ Application mobile (iOS + Android) qui aide les propriétaires et locataires de 
 
 ### Modules
 
-- **`BluetoothService`** — découverte, appairage, abonnement au flux de données. Expose `Stream<String>` de lignes NMEA brutes.
-- **`SimulationService`** — implémente la même interface que `BluetoothService`. Émet une profondeur selon un scénario (approche progressive, entrée brusque, lecture instable, manuel). Toggle dans les Réglages bascule l'app sans redémarrage.
-- **`NmeaParser`** — lit les lignes NMEA, valide le checksum, extrait la profondeur en mètres depuis `$DPT` ou `$DBT`. Trames invalides → ignorées sans crash.
+- **`DepthSource`** (interface) — contrat commun aux 4 sources : `Stream<double> depthMeters`, `Future<void> start()`, `Future<void> stop()`. Le pipeline en aval (engine, logger, UI) est totalement agnostique de la source réelle, ce qui rend le bascule sim ↔ BT ↔ WiFi sans redémarrage et facilite les tests.
+- **`BluetoothService`** — découverte, appairage, abonnement au flux SPP. Lit du NMEA brut puis le parse en `double`.
+- **`WifiNmeaService`** — bind sur un port UDP local (10110 par défaut), parse les datagrammes NMEA, expose un `Stream<double>`. Tolère plusieurs sentences par datagramme et ignore les datagrammes garbage.
+- **`SimulationService`** — émet une profondeur selon un scénario (approche progressive, entrée brusque, lecture instable, manuel). Le scénario peut changer en cours de route via `setScenario()` sans redémarrer le stream.
+- **`NullDepthSource`** — no-op, retourné quand le mode est BT mais aucune adresse n'a été choisie. Évite des `null` qui propageraient des erreurs en aval.
+- **`NmeaParser`** — lit les lignes NMEA, valide le checksum, extrait la profondeur en mètres depuis `$DPT` (champ 0) ou `$DBT` (champ 2 « metres », validé par l'unité « M » au champ 3). Trames invalides → ignorées sans crash.
 - **`LocationService`** — wrapper sur `geolocator`, expose `Stream<Position>`.
 - **`DepthLogService`** — combine profondeur + GPS en `DepthSample`, persiste en SQLite (table `depth_samples`).
-- **`AlertEngine`** — observe le flux de profondeur, déclenche vibration + son aux franchissements de seuils, applique l'hystérésis.
+- **`AlertEngine`** — observe le flux de profondeur, applique l'hystérésis et émet des transitions de niveau. Long-lived : les changements de seuils sont poussés via `setThresholds()` plutôt que de recréer l'engine, pour préserver l'état d'hystérésis pendant qu'on bouge un slider.
+- **`NotificationService`** — souscrit aux transitions de l'`AlertEngine` via Riverpod (`alertNotifierProvider`) et déclenche les patterns vibration + sons. Le couplage `AlertEngine ↔ NotificationService` est strictement provider-to-provider (pas de référence directe entre les deux classes).
 
 ### Modèle principal
 
@@ -113,20 +124,23 @@ class DepthSample {
 ## 5. Flux de données
 
 ```
-Sondeur BT  →  BluetoothService  →  NmeaParser  →  DepthStream
-                                                       │
-                                          + LocationService (GPS)
-                                                       │
-                                                       ▼
-                                                 DepthSample
-                                                       │
-                              ┌────────────────────────┼────────────────────────┐
-                              ▼                        ▼                        ▼
-                        AlertEngine             DepthLogService              UI Layer
-                       (vibration/son)         (SQLite)                  (Profondeur/Carte)
+[Sondeur BT SPP]  ┐
+[Sondeur WiFi UDP] ├─►  DepthSource  ─►  Stream<double>  ─►  depthBroadcastProvider
+[Simulator]        │   (interface)
+[Null fallback]   ┘                                                  │
+                                                                     ├──► positionBroadcastProvider (LocationService)
+                                                                     │              │
+                                                                     ▼              ▼
+                                                          alertLevelStreamProvider  └──► DepthLogger ──► DepthLogService (SQLite)
+                                                                     │
+                                                                     ▼
+                                                          alertLevelProvider  ──►  UI (DepthDisplay couleur, track_layer)
+                                                                     │
+                                                                     ▼
+                                                          alertNotifierProvider ──► NotificationService (vibration + son)
 ```
 
-En mode simulation, `BluetoothService` est remplacé par `SimulationService` derrière la même interface — le reste du pipeline est identique.
+Tous les sondeurs implémentent la même interface `DepthSource`. Le mode actif est sélectionné par `depthSourceProvider` qui ne se reconstruit que sur changement de mode/adresse/port — le reste du pipeline survit aux changements de scénario en simulation.
 
 ---
 
@@ -152,8 +166,10 @@ En mode simulation, `BluetoothService` est remplacé par `SimulationService` der
 
 ### 6.3 Écran Réglages
 
-- Connexion Bluetooth : scan, liste, appairage
-- Toggle mode simulation (avec choix de scénario)
+- **Source de profondeur** : sélecteur 3 modes (Sim / Bluetooth / WiFi). Le panneau de configuration de la source change selon le mode :
+  - Sim : choix du scénario (approche, danger soudain, instable, manuel)
+  - Bluetooth : bouton « Choisir » → liste des appareils appairés, état de connexion
+  - WiFi : champ port UDP (défaut 10110), état d'écoute
 - Sliders : seuil avertissement (défaut **1.0 m**), seuil danger (défaut **0.5 m**)
 - Choix unité : mètres / pieds (défaut : mètres)
 
@@ -197,8 +213,11 @@ Sons : un son d'alerte distinct par niveau (assets WAV/MP3 inclus dans l'app, vo
 - Persistence : sortie complète logguée puis relue depuis SQLite
 
 ### Manuel
+Voir [`docs/TEST_TERRAIN.md`](../../TEST_TERRAIN.md) pour la procédure complète. Résumé :
 - GPS : vérification en marchant dehors avec téléphone
-- Bluetooth réel : reporté tant que pas de matériel disponible — couverture fonctionnelle assurée par le mode simulation
+- Bluetooth réel : sondeur Garmin Striker + module HC-05 (~150 $ CAD)
+- WiFi réel : Deeper PRO+ 2.0 (~250 $ CAD), ou simulation depuis un PC via socket UDP
+- Couverture fonctionnelle sans matériel : assurée par le mode simulation
 
 ### Approche
 TDD systématique pour les services (skill `test-driven-development`) — tests d'abord, implémentation ensuite. Le mode simulation rend ça possible sans matériel.
