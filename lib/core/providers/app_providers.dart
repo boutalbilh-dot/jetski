@@ -66,12 +66,21 @@ final depthLogServiceProvider = Provider((ref) {
   return svc;
 });
 
-/// Stream of depth values emitted by the current source.
-final depthStreamProvider = StreamProvider<double>((ref) {
+/// Underlying depth stream from the active source, started lazily and stopped
+/// on dispose. Exposed as a [Provider] so other providers can compose it
+/// without going through the deprecated `StreamProvider.stream` getter.
+/// The simulator and the future Bluetooth source both expose broadcast
+/// streams, so multiple listeners are safe.
+final depthBroadcastProvider = Provider<Stream<double>>((ref) {
   final src = ref.watch(depthSourceProvider);
   unawaited(src.start().catchError((_) {}));
   ref.onDispose(() => unawaited(src.stop()));
   return src.depthMeters;
+});
+
+/// Stream of depth values emitted by the current source.
+final depthStreamProvider = StreamProvider<double>((ref) {
+  return ref.watch(depthBroadcastProvider);
 });
 
 /// Long-lived AlertEngine — preserved across depth events so hysteresis works.
@@ -84,11 +93,18 @@ final alertEngineProvider = Provider<AlertEngine>((ref) {
   );
 });
 
+/// Stream of alert levels derived from the depth stream + engine. Sits one
+/// layer below [alertLevelProvider] so consumers that need the raw stream
+/// (e.g. [DepthLogger]) can use it without a deprecated `.stream` getter.
+final alertLevelStreamProvider = Provider<Stream<AlertLevel>>((ref) {
+  final engine = ref.watch(alertEngineProvider);
+  final source = ref.watch(depthBroadcastProvider);
+  return source.map(engine.update);
+});
+
 /// Live alert level driven by the depth stream.
 final alertLevelProvider = StreamProvider<AlertLevel>((ref) {
-  final engine = ref.watch(alertEngineProvider);
-  final stream = ref.watch(depthStreamProvider.stream);
-  return stream.map(engine.update);
+  return ref.watch(alertLevelStreamProvider);
 });
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
@@ -144,15 +160,38 @@ class SimSelectionNotifier extends StateNotifier<SimSelection> {
 final simSelectionProvider =
     StateNotifierProvider<SimSelectionNotifier, SimSelection>((ref) => SimSelectionNotifier());
 
-/// Stream of GPS positions; null if permission denied.
-final positionStreamProvider = StreamProvider<Position?>((ref) async* {
+/// Underlying position stream from [LocationService], wrapped so consumers can
+/// compose it without going through `StreamProvider.stream`. Yields a single
+/// null then closes when permission is denied (matching the previous
+/// [StreamProvider] behaviour). Made broadcast so multiple consumers
+/// (`positionStreamProvider` + `depthLoggerProvider`) can subscribe.
+final positionBroadcastProvider = Provider<Stream<Position?>>((ref) {
   final svc = ref.watch(locationServiceProvider);
-  final stream = await svc.start();
-  if (stream == null) {
-    yield null;
-    return;
-  }
-  yield* stream;
+  final controller = StreamController<Position?>.broadcast();
+  StreamSubscription<Position>? sub;
+  () async {
+    final stream = await svc.start();
+    if (controller.isClosed) return;
+    if (stream == null) {
+      controller.add(null);
+      return;
+    }
+    sub = stream.listen(
+      controller.add,
+      onError: controller.addError,
+      onDone: controller.close,
+    );
+  }();
+  ref.onDispose(() async {
+    await sub?.cancel();
+    if (!controller.isClosed) await controller.close();
+  });
+  return controller.stream;
+});
+
+/// Stream of GPS positions; null if permission denied.
+final positionStreamProvider = StreamProvider<Position?>((ref) {
+  return ref.watch(positionBroadcastProvider);
 });
 
 /// All persisted samples (for the track layer). Refreshes on each new add via
@@ -171,8 +210,8 @@ final depthLoggerProvider = Provider<DepthLogger>((ref) {
   final log = ref.watch(depthLogServiceProvider);
   // Open the DB lazily; the logger awaits each add so a missing open() throws.
   unawaited(log.open());
-  final depth = ref.watch(depthStreamProvider.stream);
-  final pos = ref.watch(positionStreamProvider.stream).map(
+  final depth = ref.watch(depthBroadcastProvider);
+  final pos = ref.watch(positionBroadcastProvider).map(
         (p) => p == null ? null : (p.latitude, p.longitude),
       );
   // v0.1: depth is always sourced from the simulator. v0.2 will branch on
