@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../features/depth/depth_screen.dart';
 import '../features/map/map_screen.dart';
 import '../features/settings/settings_screen.dart';
+import 'connection_indicator.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -16,7 +17,19 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_index],
+      body: Stack(
+        children: [
+          Positioned.fill(child: _screens[_index]),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 12,
+            child: const SafeArea(
+              top: false,
+              child: ConnectionIndicator(),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
