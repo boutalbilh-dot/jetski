@@ -1,0 +1,58 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:projet_jetski/core/services/alert_engine.dart';
+import 'package:projet_jetski/core/theme/app_theme.dart';
+import 'package:projet_jetski/features/depth/depth_display.dart';
+
+void main() {
+  testWidgets('DepthDisplay shows depth in metres with safe color when level is safe',
+      (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: DepthDisplay(depth: 3.2, level: AlertLevel.safe),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('3.2'), findsOneWidget);
+    expect(find.text('m'), findsOneWidget);
+    final container = tester.widget<Container>(
+      find.byKey(const Key('depth-bg')),
+    );
+    final decoration = container.decoration as BoxDecoration;
+    expect(decoration.color, AppTheme.safeColor);
+  });
+
+  testWidgets('shows danger color when level is danger', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: DepthDisplay(depth: 0.3, level: AlertLevel.danger),
+          ),
+        ),
+      ),
+    );
+    final container = tester.widget<Container>(
+      find.byKey(const Key('depth-bg')),
+    );
+    final decoration = container.decoration as BoxDecoration;
+    expect(decoration.color, AppTheme.dangerColor);
+  });
+
+  testWidgets('shows --.- when depth is null', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: DepthDisplay(depth: null, level: AlertLevel.safe),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('--.-'), findsOneWidget);
+  });
+}
