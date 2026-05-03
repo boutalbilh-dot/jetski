@@ -15,8 +15,6 @@ class SettingsScreen extends ConsumerWidget {
     final simNotifier = ref.read(simSelectionProvider.notifier);
     final unit = ref.watch(unitProvider);
     final unitNotifier = ref.read(unitProvider.notifier);
-    // v0.1: simulation is always on. The Bluetooth source ships in v0.2;
-    // until then we expose only the scenario picker.
 
     return Scaffold(
       appBar: AppBar(title: const Text('Réglages')),

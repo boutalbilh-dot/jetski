@@ -26,7 +26,8 @@ class LocationService {
     return Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 1,
+        // 5 m balances battery vs. resolution at jetski speeds (5–20 m/s).
+        distanceFilter: 5,
       ),
     );
   }

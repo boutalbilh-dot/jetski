@@ -11,12 +11,23 @@ abstract class NotificationBackend {
 }
 
 class RealBackend implements NotificationBackend {
-  final _player = AudioPlayer();
+  final _warningPlayer = AudioPlayer();
+  final _dangerPlayer = AudioPlayer();
+  bool? _hasVibrator;
+
+  RealBackend() {
+    // Preload assets so the first transition into warning/danger doesn't
+    // stall on disk I/O — that's exactly the moment latency hurts most.
+    _warningPlayer.setReleaseMode(ReleaseMode.stop);
+    _warningPlayer.setSource(AssetSource('sounds/warning.wav'));
+    _dangerPlayer.setReleaseMode(ReleaseMode.stop);
+    _dangerPlayer.setSource(AssetSource('sounds/danger.wav'));
+  }
 
   @override
   Future<void> vibratePattern(List<int> pattern) async {
-    // vibration: ^2.0.0 — hasVibrator() returns Future<bool>.
-    if (await Vibration.hasVibrator()) {
+    _hasVibrator ??= await Vibration.hasVibrator();
+    if (_hasVibrator!) {
       await Vibration.vibrate(pattern: pattern);
     }
   }
@@ -26,18 +37,21 @@ class RealBackend implements NotificationBackend {
 
   @override
   Future<void> playWarning() async {
-    await _player.stop();
-    await _player.play(AssetSource('sounds/warning.wav'));
+    await _warningPlayer.stop();
+    await _warningPlayer.resume();
   }
 
   @override
   Future<void> playDanger() async {
-    await _player.stop();
-    await _player.play(AssetSource('sounds/danger.wav'));
+    await _dangerPlayer.stop();
+    await _dangerPlayer.resume();
   }
 
   @override
-  Future<void> stopAudio() => _player.stop();
+  Future<void> stopAudio() async {
+    await _warningPlayer.stop();
+    await _dangerPlayer.stop();
+  }
 }
 
 class NotificationService {

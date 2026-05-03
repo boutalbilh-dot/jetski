@@ -3,7 +3,6 @@ import '../../core/providers/app_providers.dart';
 import '../../core/services/alert_engine.dart';
 import '../../core/theme/app_theme.dart';
 
-/// Metres-per-foot conversion constant.
 const double _metersPerFoot = 0.3048;
 
 class DepthDisplay extends StatelessWidget {
@@ -20,11 +19,7 @@ class DepthDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = switch (level) {
-      AlertLevel.safe => AppTheme.safeColor,
-      AlertLevel.warning => AppTheme.warningColor,
-      AlertLevel.danger => AppTheme.dangerColor,
-    };
+    final bg = AppTheme.colorForLevel(level);
     final unitLabel = unit == DepthUnit.feet ? 'ft' : 'm';
     final String text;
     if (depth == null) {
