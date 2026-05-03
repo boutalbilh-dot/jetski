@@ -5,11 +5,13 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/depth_sample.dart';
 import '../services/alert_engine.dart';
+import '../services/bluetooth_service.dart';
 import '../services/depth_log_service.dart';
 import '../services/depth_logger.dart';
 import '../services/depth_source.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
+import '../services/null_depth_source.dart';
 import '../services/simulation_service.dart';
 
 /// Centralised SharedPreferences keys.
@@ -18,7 +20,58 @@ class _PrefsKeys {
   static const thresholdDanger = 'th.danger';
   static const unit = 'unit';
   static const simScenario = 'sim.scenario';
+  static const sourceMode = 'src.mode';
+  static const bluetoothAddress = 'src.bt.address';
 }
+
+enum SourceMode { simulation, bluetooth }
+
+class SourceConfig {
+  final SourceMode mode;
+  final String? bluetoothAddress;
+  const SourceConfig({this.mode = SourceMode.simulation, this.bluetoothAddress});
+  SourceConfig copyWith({SourceMode? mode, String? bluetoothAddress}) =>
+      SourceConfig(
+        mode: mode ?? this.mode,
+        bluetoothAddress: bluetoothAddress ?? this.bluetoothAddress,
+      );
+}
+
+class SourceConfigNotifier extends StateNotifier<SourceConfig> {
+  SourceConfigNotifier() : super(const SourceConfig()) {
+    _load();
+  }
+  Future<void> _load() async {
+    final p = await SharedPreferences.getInstance();
+    final modeStr = p.getString(_PrefsKeys.sourceMode);
+    final mode = SourceMode.values
+            .where((m) => m.name == modeStr)
+            .firstOrNull ??
+        SourceMode.simulation;
+    final addr = p.getString(_PrefsKeys.bluetoothAddress);
+    state = SourceConfig(mode: mode, bluetoothAddress: addr);
+  }
+
+  Future<void> setMode(SourceMode mode) async {
+    state = state.copyWith(mode: mode);
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_PrefsKeys.sourceMode, mode.name);
+  }
+
+  Future<void> setBluetoothAddress(String? address) async {
+    state = SourceConfig(mode: state.mode, bluetoothAddress: address);
+    final p = await SharedPreferences.getInstance();
+    if (address == null) {
+      await p.remove(_PrefsKeys.bluetoothAddress);
+    } else {
+      await p.setString(_PrefsKeys.bluetoothAddress, address);
+    }
+  }
+}
+
+final sourceConfigProvider =
+    StateNotifierProvider<SourceConfigNotifier, SourceConfig>(
+        (ref) => SourceConfigNotifier());
 
 class Thresholds {
   final double warningMeters;
@@ -58,17 +111,51 @@ class ThresholdsNotifier extends StateNotifier<Thresholds> {
 final thresholdsProvider =
     StateNotifierProvider<ThresholdsNotifier, Thresholds>((ref) => ThresholdsNotifier());
 
-/// Currently selected depth source. Long-lived: scenario changes are pushed in
-/// via setScenario() rather than recreating the source (which would tear down
-/// the depth stream, alert engine, and logger).
+/// Currently selected depth source. Rebuilt only when the source mode or
+/// bluetooth address changes (rare, user-driven). Within simulation mode,
+/// scenario changes are pushed via setScenario() so the rest of the
+/// pipeline (engine, logger) survives.
 final depthSourceProvider = Provider<DepthSource>((ref) {
-  final initial = ref.read(simSelectionProvider).scenario;
-  final src = SimulationService(scenario: initial);
-  ref.listen<SimSelection>(simSelectionProvider, (_, next) {
-    src.setScenario(next.scenario);
-  });
-  return src;
+  final mode = ref.watch(sourceConfigProvider.select((c) => c.mode));
+  final btAddress =
+      ref.watch(sourceConfigProvider.select((c) => c.bluetoothAddress));
+
+  if (mode == SourceMode.simulation) {
+    final initial = ref.read(simSelectionProvider).scenario;
+    final src = SimulationService(scenario: initial);
+    ref.listen<SimSelection>(simSelectionProvider, (_, next) {
+      src.setScenario(next.scenario);
+    });
+    return src;
+  }
+
+  if (btAddress == null || btAddress.isEmpty) {
+    return NullDepthSource();
+  }
+  return BluetoothService(btAddress);
 });
+
+/// Connection state of the active source if it's a [BluetoothService];
+/// null when the active source is the simulator or the no-op source.
+final bluetoothConnectionStateProvider =
+    StreamProvider<BluetoothConnectionState?>((ref) {
+  final src = ref.watch(depthSourceProvider);
+  if (src is! BluetoothService) {
+    // Emit a single null and keep the stream open so the UI can drop the
+    // indicator while in sim mode.
+    return Stream.value(null);
+  }
+  return src.connectionState
+      .map<BluetoothConnectionState?>((s) => s)
+      .startWith(src.currentState);
+});
+
+extension _StartWith<T> on Stream<T> {
+  Stream<T> startWith(T initial) async* {
+    yield initial;
+    yield* this;
+  }
+}
 
 final locationServiceProvider = Provider((ref) => LocationService());
 
@@ -245,13 +332,16 @@ final depthLoggerProvider = Provider<DepthLogger>((ref) {
   final pos = ref.watch(positionBroadcastProvider).map(
         (p) => p == null ? null : (p.latitude, p.longitude),
       );
+  final mode = ref.watch(sourceConfigProvider.select((c) => c.mode));
   final logger = DepthLogger(
     logService: log,
     depthStream: depth,
     positionStream: pos,
     onCommit: () =>
         ref.read(depthLogVersionProvider.notifier).update((v) => v + 1),
-    source: SampleSource.simulated,
+    source: mode == SourceMode.bluetooth
+        ? SampleSource.real
+        : SampleSource.simulated,
   );
   unawaited(logger.start().catchError((Object e, StackTrace st) {
     debugPrint('depthLogger.start() failed: $e\n$st');

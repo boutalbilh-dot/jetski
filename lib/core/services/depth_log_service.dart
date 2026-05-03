@@ -19,12 +19,15 @@ class DepthLogService {
     await _trimToRetention();
   }
 
-  /// In-memory variant for tests.
+  /// In-memory variant for tests. Each call gets a private connection
+  /// (singleInstance: false), so parallel test files don't share state via
+  /// sqflite_ffi's shared `:memory:` cache.
   Future<void> openInMemory() async {
     if (_db != null) return;
     _db = await openDatabase(
       inMemoryDatabasePath,
       version: 1,
+      singleInstance: false,
       onConfigure: _configure,
       onCreate: _migrate,
     );
