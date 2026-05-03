@@ -17,6 +17,7 @@ class _PrefsKeys {
   static const thresholdWarn = 'th.warn';
   static const thresholdDanger = 'th.danger';
   static const unit = 'unit';
+  static const simScenario = 'sim.scenario';
 }
 
 class Thresholds {
@@ -165,9 +166,26 @@ class SimSelection {
 }
 
 class SimSelectionNotifier extends StateNotifier<SimSelection> {
-  SimSelectionNotifier() : super(const SimSelection());
+  SimSelectionNotifier() : super(const SimSelection()) {
+    _load();
+  }
+  Future<void> _load() async {
+    final p = await SharedPreferences.getInstance();
+    final stored = p.getString(_PrefsKeys.simScenario);
+    if (stored == null) return;
+    final scenario = SimulationScenario.values
+        .where((s) => s.name == stored)
+        .firstOrNull;
+    if (scenario != null) {
+      state = state.copyWith(scenario: scenario);
+    }
+  }
   void setEnabled(bool v) => state = state.copyWith(enabled: v);
-  void setScenario(SimulationScenario s) => state = state.copyWith(scenario: s);
+  Future<void> setScenario(SimulationScenario s) async {
+    state = state.copyWith(scenario: s);
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_PrefsKeys.simScenario, s.name);
+  }
 }
 
 final simSelectionProvider =
