@@ -1,17 +1,30 @@
-# projet_jetski
+# Projet Jetski
 
-A new Flutter project.
+Application Flutter (iOS + Android) qui aide les propriétaires et locataires de
+jetski à éviter les dommages en eau peu profonde, en lisant la profondeur en
+temps réel depuis un sondeur Bluetooth NMEA 0183 et en affichant l'information
+de manière user-friendly avec alertes sonores et visuelles.
 
-## Getting Started
+## Documentation
 
-This project is a starting point for a Flutter application.
+- [Spec de design](docs/superpowers/specs/2026-05-03-jetski-design.md)
+- [Plan d'implémentation](docs/superpowers/plans/2026-05-03-jetski-app.md)
 
-A few resources to get you started if this is your first Flutter project:
+## Démarrage
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Tests
+
+```bash
+flutter test
+```
+
+## Mode simulation
+
+Pas besoin de sondeur pour développer ou démontrer l'app : le mode simulation
+émet un flux de profondeurs fake selon 4 scénarios (approche progressive,
+entrée brusque en danger, lecture instable, manuel).

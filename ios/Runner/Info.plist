@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Connexion au sondeur de profondeur du jetski</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Connexion au sondeur de profondeur du jetski</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Pour afficher votre trace GPS sur la carte</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Pour enregistrer votre trace même quand l'écran est verrouillé</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
