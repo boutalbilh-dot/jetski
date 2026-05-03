@@ -13,6 +13,7 @@ import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../services/null_depth_source.dart';
 import '../services/simulation_service.dart';
+import '../services/wifi_nmea_service.dart';
 
 /// Centralised SharedPreferences keys.
 class _PrefsKeys {
@@ -22,18 +23,34 @@ class _PrefsKeys {
   static const simScenario = 'sim.scenario';
   static const sourceMode = 'src.mode';
   static const bluetoothAddress = 'src.bt.address';
+  static const wifiPort = 'src.wifi.port';
 }
 
-enum SourceMode { simulation, bluetooth }
+/// Default UDP port for NMEA 0183-over-WiFi. 10110 is the de-facto standard
+/// used by OpenCPN, Navionics, Yacht Devices, Digital Yacht and most marine
+/// WiFi gateways. Deeper sonars let the user pick any port.
+const int kDefaultWifiNmeaPort = 10110;
+
+enum SourceMode { simulation, bluetooth, wifi }
 
 class SourceConfig {
   final SourceMode mode;
   final String? bluetoothAddress;
-  const SourceConfig({this.mode = SourceMode.simulation, this.bluetoothAddress});
-  SourceConfig copyWith({SourceMode? mode, String? bluetoothAddress}) =>
+  final int wifiPort;
+  const SourceConfig({
+    this.mode = SourceMode.simulation,
+    this.bluetoothAddress,
+    this.wifiPort = kDefaultWifiNmeaPort,
+  });
+  SourceConfig copyWith({
+    SourceMode? mode,
+    String? bluetoothAddress,
+    int? wifiPort,
+  }) =>
       SourceConfig(
         mode: mode ?? this.mode,
         bluetoothAddress: bluetoothAddress ?? this.bluetoothAddress,
+        wifiPort: wifiPort ?? this.wifiPort,
       );
 }
 
@@ -49,7 +66,8 @@ class SourceConfigNotifier extends StateNotifier<SourceConfig> {
             .firstOrNull ??
         SourceMode.simulation;
     final addr = p.getString(_PrefsKeys.bluetoothAddress);
-    state = SourceConfig(mode: mode, bluetoothAddress: addr);
+    final port = p.getInt(_PrefsKeys.wifiPort) ?? kDefaultWifiNmeaPort;
+    state = SourceConfig(mode: mode, bluetoothAddress: addr, wifiPort: port);
   }
 
   Future<void> setMode(SourceMode mode) async {
@@ -59,13 +77,23 @@ class SourceConfigNotifier extends StateNotifier<SourceConfig> {
   }
 
   Future<void> setBluetoothAddress(String? address) async {
-    state = SourceConfig(mode: state.mode, bluetoothAddress: address);
+    state = SourceConfig(
+      mode: state.mode,
+      bluetoothAddress: address,
+      wifiPort: state.wifiPort,
+    );
     final p = await SharedPreferences.getInstance();
     if (address == null) {
       await p.remove(_PrefsKeys.bluetoothAddress);
     } else {
       await p.setString(_PrefsKeys.bluetoothAddress, address);
     }
+  }
+
+  Future<void> setWifiPort(int port) async {
+    state = state.copyWith(wifiPort: port);
+    final p = await SharedPreferences.getInstance();
+    await p.setInt(_PrefsKeys.wifiPort, port);
   }
 }
 
@@ -111,44 +139,65 @@ class ThresholdsNotifier extends StateNotifier<Thresholds> {
 final thresholdsProvider =
     StateNotifierProvider<ThresholdsNotifier, Thresholds>((ref) => ThresholdsNotifier());
 
-/// Currently selected depth source. Rebuilt only when the source mode or
-/// bluetooth address changes (rare, user-driven). Within simulation mode,
-/// scenario changes are pushed via setScenario() so the rest of the
-/// pipeline (engine, logger) survives.
+/// Currently selected depth source. Rebuilt only when source mode, BT
+/// address, or WiFi port changes (rare, user-driven). Within simulation mode,
+/// scenario changes are pushed via setScenario() so the rest of the pipeline
+/// (engine, logger) survives.
 final depthSourceProvider = Provider<DepthSource>((ref) {
   final mode = ref.watch(sourceConfigProvider.select((c) => c.mode));
   final btAddress =
       ref.watch(sourceConfigProvider.select((c) => c.bluetoothAddress));
+  final wifiPort = ref.watch(sourceConfigProvider.select((c) => c.wifiPort));
 
-  if (mode == SourceMode.simulation) {
-    final initial = ref.read(simSelectionProvider).scenario;
-    final src = SimulationService(scenario: initial);
-    ref.listen<SimSelection>(simSelectionProvider, (_, next) {
-      src.setScenario(next.scenario);
-    });
-    return src;
-  }
+  switch (mode) {
+    case SourceMode.simulation:
+      final initial = ref.read(simSelectionProvider).scenario;
+      final src = SimulationService(scenario: initial);
+      ref.listen<SimSelection>(simSelectionProvider, (_, next) {
+        src.setScenario(next.scenario);
+      });
+      return src;
 
-  if (btAddress == null || btAddress.isEmpty) {
-    return NullDepthSource();
+    case SourceMode.bluetooth:
+      if (btAddress == null || btAddress.isEmpty) {
+        return NullDepthSource();
+      }
+      return BluetoothService(btAddress);
+
+    case SourceMode.wifi:
+      return WifiNmeaService(port: wifiPort);
   }
-  return BluetoothService(btAddress);
 });
 
-/// Connection state of the active source if it's a [BluetoothService];
-/// null when the active source is the simulator or the no-op source.
-final bluetoothConnectionStateProvider =
-    StreamProvider<BluetoothConnectionState?>((ref) {
+/// Generic source-connection state surfaced to the UI. Yields null when the
+/// active source is the simulator or the no-op source so the indicator can
+/// hide.
+enum SourceConnectionState { disconnected, connecting, connected, error }
+
+final sourceConnectionStateProvider =
+    StreamProvider<SourceConnectionState?>((ref) {
   final src = ref.watch(depthSourceProvider);
-  if (src is! BluetoothService) {
-    // Emit a single null and keep the stream open so the UI can drop the
-    // indicator while in sim mode.
-    return Stream.value(null);
+  if (src is BluetoothService) {
+    return src.connectionState.map(_mapBt).startWith(_mapBt(src.currentState));
   }
-  return src.connectionState
-      .map<BluetoothConnectionState?>((s) => s)
-      .startWith(src.currentState);
+  if (src is WifiNmeaService) {
+    return src.connectionState.map(_mapWifi).startWith(_mapWifi(src.currentState));
+  }
+  return Stream.value(null);
 });
+
+SourceConnectionState _mapBt(BluetoothConnectionState s) => switch (s) {
+      BluetoothConnectionState.disconnected => SourceConnectionState.disconnected,
+      BluetoothConnectionState.connecting => SourceConnectionState.connecting,
+      BluetoothConnectionState.connected => SourceConnectionState.connected,
+      BluetoothConnectionState.error => SourceConnectionState.error,
+    };
+
+SourceConnectionState _mapWifi(WifiConnectionState s) => switch (s) {
+      WifiConnectionState.idle => SourceConnectionState.disconnected,
+      WifiConnectionState.listening => SourceConnectionState.connected,
+      WifiConnectionState.error => SourceConnectionState.error,
+    };
 
 extension _StartWith<T> on Stream<T> {
   Stream<T> startWith(T initial) async* {
@@ -339,9 +388,9 @@ final depthLoggerProvider = Provider<DepthLogger>((ref) {
     positionStream: pos,
     onCommit: () =>
         ref.read(depthLogVersionProvider.notifier).update((v) => v + 1),
-    source: mode == SourceMode.bluetooth
-        ? SampleSource.real
-        : SampleSource.simulated,
+    source: mode == SourceMode.simulation
+        ? SampleSource.simulated
+        : SampleSource.real,
   );
   unawaited(logger.start().catchError((Object e, StackTrace st) {
     debugPrint('depthLogger.start() failed: $e\n$st');

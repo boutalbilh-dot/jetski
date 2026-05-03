@@ -10,6 +10,8 @@
 	<string>Pour afficher votre trace GPS sur la carte</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Pour enregistrer votre trace même quand l'écran est verrouillé</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Pour recevoir les données de profondeur d'un sondeur WiFi (Deeper, Lowrance, passerelle marine) sur le réseau local</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

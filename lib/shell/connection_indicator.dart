@@ -1,38 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers/app_providers.dart';
-import '../core/services/bluetooth_service.dart';
 
-/// Small chip showing the Bluetooth connection state. Hidden entirely when
-/// the active source is the simulator or there's no source.
+/// Small chip showing the current source's connection state. Hidden entirely
+/// when the active source is the simulator or no source is wired up.
 class ConnectionIndicator extends ConsumerWidget {
   const ConnectionIndicator({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(bluetoothConnectionStateProvider).valueOrNull;
+    final state = ref.watch(sourceConnectionStateProvider).valueOrNull;
     if (state == null) return const SizedBox.shrink();
 
+    final mode = ref.watch(sourceConfigProvider.select((c) => c.mode));
+    final base = mode == SourceMode.wifi ? 'WiFi' : 'BT';
+
     final (icon, color, label) = switch (state) {
-      BluetoothConnectionState.disconnected => (
-        Icons.bluetooth_disabled,
+      SourceConnectionState.disconnected => (
+        mode == SourceMode.wifi ? Icons.wifi_off : Icons.bluetooth_disabled,
         Colors.grey,
-        'Déconnecté',
+        '$base : déconnecté',
       ),
-      BluetoothConnectionState.connecting => (
-        Icons.bluetooth_searching,
+      SourceConnectionState.connecting => (
+        mode == SourceMode.wifi ? Icons.wifi : Icons.bluetooth_searching,
         Colors.orange,
-        'Connexion…',
+        '$base : connexion…',
       ),
-      BluetoothConnectionState.connected => (
-        Icons.bluetooth_connected,
+      SourceConnectionState.connected => (
+        mode == SourceMode.wifi ? Icons.wifi : Icons.bluetooth_connected,
         Colors.green,
-        'Connecté',
+        '$base : connecté',
       ),
-      BluetoothConnectionState.error => (
+      SourceConnectionState.error => (
         Icons.error_outline,
         Colors.red,
-        'Erreur',
+        '$base : erreur',
       ),
     };
 
