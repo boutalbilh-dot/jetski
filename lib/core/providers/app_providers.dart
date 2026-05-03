@@ -12,8 +12,10 @@ import '../services/depth_source.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../services/null_depth_source.dart';
+import '../services/replay_depth_source.dart';
 import '../services/simulation_service.dart';
 import '../services/wifi_nmea_service.dart';
+export '../services/replay_depth_source.dart' show kReplayDefaultLookback;
 
 /// Centralised SharedPreferences keys.
 class _PrefsKeys {
@@ -31,7 +33,7 @@ class _PrefsKeys {
 /// WiFi gateways. Deeper sonars let the user pick any port.
 const int kDefaultWifiNmeaPort = 10110;
 
-enum SourceMode { simulation, bluetooth, wifi }
+enum SourceMode { simulation, bluetooth, wifi, replay }
 
 class SourceConfig {
   final SourceMode mode;
@@ -166,6 +168,11 @@ final depthSourceProvider = Provider<DepthSource>((ref) {
 
     case SourceMode.wifi:
       return WifiNmeaService(port: wifiPort);
+
+    case SourceMode.replay:
+      return ReplayDepthSource(
+        logService: ref.read(depthLogServiceProvider),
+      );
   }
 });
 
@@ -212,6 +219,24 @@ final depthLogServiceProvider = Provider((ref) {
   final svc = DepthLogService();
   ref.onDispose(svc.close);
   return svc;
+});
+
+/// Number of `real` samples in the replay lookback window. The settings
+/// panel shows this so the user knows whether replay mode has anything to
+/// play before they switch to it. Refreshed on each new logger commit so it
+/// stays in sync with the live recording session.
+final replayAvailableCountProvider = FutureProvider<int>((ref) async {
+  ref.watch(depthLogVersionProvider);
+  final svc = ref.watch(depthLogServiceProvider);
+  // open() is idempotent; calling here covers the case where the user opens
+  // settings before any other screen has triggered logger startup.
+  await svc.open();
+  final now = DateTime.now().toUtc();
+  return svc.count(
+    from: now.subtract(kReplayDefaultLookback),
+    to: now,
+    source: SampleSource.real,
+  );
 });
 
 /// Underlying depth stream from the active source. The simulator and the
@@ -388,9 +413,10 @@ final depthLoggerProvider = Provider<DepthLogger>((ref) {
     positionStream: pos,
     onCommit: () =>
         ref.read(depthLogVersionProvider.notifier).update((v) => v + 1),
-    source: mode == SourceMode.simulation
-        ? SampleSource.simulated
-        : SampleSource.real,
+    // Real sensors mark samples as real; sim & replay are synthesized.
+    source: (mode == SourceMode.bluetooth || mode == SourceMode.wifi)
+        ? SampleSource.real
+        : SampleSource.simulated,
   );
   unawaited(logger.start().catchError((Object e, StackTrace st) {
     debugPrint('depthLogger.start() failed: $e\n$st');

@@ -59,5 +59,69 @@ void main() {
       );
       expect(mid.map((s) => s.depthMeters), [1.0, 2.0, 3.0]);
     });
+
+    test('range filters by source when given', () async {
+      final t0 = DateTime.utc(2026, 5, 3);
+      await service.addAll([
+        DepthSample(timestamp: t0, depthMeters: 1.0, source: SampleSource.real),
+        DepthSample(
+            timestamp: t0.add(const Duration(seconds: 1)),
+            depthMeters: 2.0,
+            source: SampleSource.simulated),
+        DepthSample(
+            timestamp: t0.add(const Duration(seconds: 2)),
+            depthMeters: 3.0,
+            source: SampleSource.real),
+      ]);
+      final reals = await service.range(
+        from: t0,
+        to: t0.add(const Duration(seconds: 10)),
+        source: SampleSource.real,
+      );
+      expect(reals.map((s) => s.depthMeters), [1.0, 3.0]);
+
+      final sims = await service.range(
+        from: t0,
+        to: t0.add(const Duration(seconds: 10)),
+        source: SampleSource.simulated,
+      );
+      expect(sims.map((s) => s.depthMeters), [2.0]);
+    });
+
+    test('count returns total in window, optionally filtered by source',
+        () async {
+      final t0 = DateTime.utc(2026, 5, 3);
+      await service.addAll([
+        DepthSample(timestamp: t0, depthMeters: 1.0, source: SampleSource.real),
+        DepthSample(
+            timestamp: t0.add(const Duration(seconds: 1)),
+            depthMeters: 2.0,
+            source: SampleSource.simulated),
+        DepthSample(
+            timestamp: t0.add(const Duration(seconds: 2)),
+            depthMeters: 3.0,
+            source: SampleSource.real),
+      ]);
+      expect(
+        await service.count(
+            from: t0, to: t0.add(const Duration(seconds: 10))),
+        3,
+      );
+      expect(
+        await service.count(
+          from: t0,
+          to: t0.add(const Duration(seconds: 10)),
+          source: SampleSource.real,
+        ),
+        2,
+      );
+      expect(
+        await service.count(
+          from: t0.add(const Duration(seconds: 5)),
+          to: t0.add(const Duration(seconds: 10)),
+        ),
+        0,
+      );
+    });
   });
 }

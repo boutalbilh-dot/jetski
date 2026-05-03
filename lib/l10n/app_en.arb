@@ -13,6 +13,15 @@
   "sourceModeSim": "Sim",
   "sourceModeBt": "Bluetooth",
   "sourceModeWifi": "WiFi",
+  "sourceModeReplay": "Replay",
+  "replayPanelTitle": "Replay a recorded session",
+  "replayPanelSubtitle": "Replays the depths and positions recorded in the last 24 h, at their original cadence. Useful for testing the pipeline without hardware.",
+  "replayLoopLabel": "Loop playback",
+  "replayNoDataYet": "No recent session to replay yet. Use another mode to record a trip first.",
+  "replaySamplesAvailable": "{count, plural, =1{1 recorded sample available} other{{count} recorded samples available}}",
+  "@replaySamplesAvailable": {
+    "placeholders": {"count": {"type": "int"}}
+  },
   "simulationPanelTitle": "Simulation mode",
   "simulationPanelSubtitle": "Emits fake depths following a chosen scenario.",
   "scenarioLabel": "Scenario:",

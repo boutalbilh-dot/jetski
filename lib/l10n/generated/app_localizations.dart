@@ -170,6 +170,42 @@ abstract class AppLocalizations {
   /// **'WiFi'**
   String get sourceModeWifi;
 
+  /// No description provided for @sourceModeReplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay'**
+  String get sourceModeReplay;
+
+  /// No description provided for @replayPanelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay a recorded session'**
+  String get replayPanelTitle;
+
+  /// No description provided for @replayPanelSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replays the depths and positions recorded in the last 24 h, at their original cadence. Useful for testing the pipeline without hardware.'**
+  String get replayPanelSubtitle;
+
+  /// No description provided for @replayLoopLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Loop playback'**
+  String get replayLoopLabel;
+
+  /// No description provided for @replayNoDataYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No recent session to replay yet. Use another mode to record a trip first.'**
+  String get replayNoDataYet;
+
+  /// No description provided for @replaySamplesAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 recorded sample available} other{{count} recorded samples available}}'**
+  String replaySamplesAvailable(int count);
+
   /// No description provided for @simulationPanelTitle.
   ///
   /// In en, this message translates to:

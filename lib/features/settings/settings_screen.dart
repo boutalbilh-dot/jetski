@@ -70,36 +70,40 @@ class SettingsScreen extends ConsumerWidget {
                     value: SourceMode.wifi,
                     label: Text(l10n.sourceModeWifi),
                     icon: const Icon(Icons.wifi)),
+                ButtonSegment(
+                    value: SourceMode.replay,
+                    label: Text(l10n.sourceModeReplay),
+                    icon: const Icon(Icons.history)),
               ],
               selected: {source.mode},
               onSelectionChanged: (s) => sourceNotifier.setMode(s.first),
             ),
           ),
           const SizedBox(height: 8),
-          if (source.mode == SourceMode.simulation)
-            _SimulationPanel(
-              scenario: sim.scenario,
-              onScenarioChanged: simNotifier.setScenario,
-            )
-          else if (source.mode == SourceMode.bluetooth)
-            _BluetoothPanel(
-              address: source.bluetoothAddress,
-              onPick: () async {
-                final addr = await showDialog<String>(
-                  context: context,
-                  builder: (_) => const BluetoothPickerDialog(),
-                );
-                if (addr != null) {
-                  await sourceNotifier.setBluetoothAddress(addr);
-                }
-              },
-              onForget: () => sourceNotifier.setBluetoothAddress(null),
-            )
-          else
-            _WifiPanel(
-              port: source.wifiPort,
-              onPortChanged: sourceNotifier.setWifiPort,
-            ),
+          switch (source.mode) {
+            SourceMode.simulation => _SimulationPanel(
+                scenario: sim.scenario,
+                onScenarioChanged: simNotifier.setScenario,
+              ),
+            SourceMode.bluetooth => _BluetoothPanel(
+                address: source.bluetoothAddress,
+                onPick: () async {
+                  final addr = await showDialog<String>(
+                    context: context,
+                    builder: (_) => const BluetoothPickerDialog(),
+                  );
+                  if (addr != null) {
+                    await sourceNotifier.setBluetoothAddress(addr);
+                  }
+                },
+                onForget: () => sourceNotifier.setBluetoothAddress(null),
+              ),
+            SourceMode.wifi => _WifiPanel(
+                port: source.wifiPort,
+                onPortChanged: sourceNotifier.setWifiPort,
+              ),
+            SourceMode.replay => const _ReplayPanel(),
+          },
           const Divider(),
           ListTile(
             title: Text(l10n.unitLabel),
@@ -193,6 +197,52 @@ class _BluetoothPanel extends StatelessWidget {
               onPressed: onForget,
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _ReplayPanel extends ConsumerWidget {
+  const _ReplayPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final countAsync = ref.watch(replayAvailableCountProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.history),
+          title: Text(l10n.replayPanelTitle),
+          subtitle: Text(l10n.replayPanelSubtitle),
+        ),
+        countAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: LinearProgressIndicator(),
+          ),
+          error: (_, __) => const SizedBox.shrink(),
+          data: (count) {
+            if (count == 0) {
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Text(
+                  l10n.replayNoDataYet,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              );
+            }
+            return Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text(l10n.replaySamplesAvailable(count)),
+            );
+          },
+        ),
       ],
     );
   }

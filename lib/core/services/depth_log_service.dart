@@ -92,17 +92,54 @@ class DepthLogService {
     return rows.map(DepthSample.fromMap).toList();
   }
 
-  Future<List<DepthSample>> range({required DateTime from, required DateTime to}) async {
+  Future<List<DepthSample>> range({
+    required DateTime from,
+    required DateTime to,
+    SampleSource? source,
+  }) async {
+    final where = StringBuffer(
+      '${DepthSample.colTimestamp} >= ? AND ${DepthSample.colTimestamp} <= ?',
+    );
+    final args = <Object>[
+      DepthSample.encodeTimestamp(from),
+      DepthSample.encodeTimestamp(to),
+    ];
+    if (source != null) {
+      where.write(' AND ${DepthSample.colSource} = ?');
+      args.add(source.name);
+    }
     final rows = await _requireDb().query(
       DepthSample.tableName,
-      where: '${DepthSample.colTimestamp} >= ? AND ${DepthSample.colTimestamp} <= ?',
-      whereArgs: [
-        DepthSample.encodeTimestamp(from),
-        DepthSample.encodeTimestamp(to),
-      ],
+      where: where.toString(),
+      whereArgs: args,
       orderBy: '${DepthSample.colTimestamp} ASC',
     );
     return rows.map(DepthSample.fromMap).toList();
+  }
+
+  /// Counts samples matching the given window and (optional) source. Useful
+  /// for the UI to show "X recordings available" without loading the rows.
+  Future<int> count({
+    required DateTime from,
+    required DateTime to,
+    SampleSource? source,
+  }) async {
+    final where = StringBuffer(
+      '${DepthSample.colTimestamp} >= ? AND ${DepthSample.colTimestamp} <= ?',
+    );
+    final args = <Object>[
+      DepthSample.encodeTimestamp(from),
+      DepthSample.encodeTimestamp(to),
+    ];
+    if (source != null) {
+      where.write(' AND ${DepthSample.colSource} = ?');
+      args.add(source.name);
+    }
+    final rows = await _requireDb().rawQuery(
+      'SELECT COUNT(*) AS c FROM ${DepthSample.tableName} WHERE $where',
+      args,
+    );
+    return (rows.first['c'] as int?) ?? 0;
   }
 
   Future<void> close() async {

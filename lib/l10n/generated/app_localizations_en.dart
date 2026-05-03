@@ -45,6 +45,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sourceModeWifi => 'WiFi';
 
   @override
+  String get sourceModeReplay => 'Replay';
+
+  @override
+  String get replayPanelTitle => 'Replay a recorded session';
+
+  @override
+  String get replayPanelSubtitle =>
+      'Replays the depths and positions recorded in the last 24 h, at their original cadence. Useful for testing the pipeline without hardware.';
+
+  @override
+  String get replayLoopLabel => 'Loop playback';
+
+  @override
+  String get replayNoDataYet =>
+      'No recent session to replay yet. Use another mode to record a trip first.';
+
+  @override
+  String replaySamplesAvailable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count recorded samples available',
+      one: '1 recorded sample available',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get simulationPanelTitle => 'Simulation mode';
 
   @override
