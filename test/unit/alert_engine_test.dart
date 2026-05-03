@@ -27,6 +27,10 @@ void main() {
       expect(engine.update(0.4), AlertLevel.danger);
     });
 
+    test('safe transitions directly to danger when depth crashes past warning', () {
+      expect(engine.update(0.3), AlertLevel.danger);
+    });
+
     test('hysteresis: warning does not clear at exactly the threshold', () {
       engine.update(0.9); // -> warning
       // Threshold + hysteresis is 1.0 + 0.3 = 1.3 m. 1.05 m must stay warning.
