@@ -5,6 +5,7 @@ import '../services/alert_engine.dart';
 import '../services/depth_log_service.dart';
 import '../services/depth_source.dart';
 import '../services/location_service.dart';
+import '../services/notification_service.dart';
 import '../services/simulation_service.dart';
 
 class Thresholds {
@@ -83,4 +84,20 @@ final alertLevelProvider = StreamProvider<AlertLevel>((ref) {
   final engine = ref.watch(alertEngineProvider);
   final stream = ref.watch(depthStreamProvider.stream);
   return stream.map(engine.update);
+});
+
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return NotificationService(RealBackend());
+});
+
+/// Listens to alertLevelProvider transitions and fires notifications. Created
+/// once at app startup; never rebuilds.
+final alertNotifierProvider = Provider<void>((ref) {
+  final svc = ref.watch(notificationServiceProvider);
+  ref.listen(alertLevelProvider, (prev, next) {
+    final newLevel = next.valueOrNull;
+    if (newLevel == null) return;
+    if (prev?.valueOrNull == newLevel) return;
+    svc.handleTransition(newLevel);
+  });
 });
