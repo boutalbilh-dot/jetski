@@ -15,6 +15,8 @@ class SettingsScreen extends ConsumerWidget {
     final simNotifier = ref.read(simSelectionProvider.notifier);
     final unit = ref.watch(unitProvider);
     final unitNotifier = ref.read(unitProvider.notifier);
+    // v0.1: simulation is always on. The Bluetooth source ships in v0.2;
+    // until then we expose only the scenario picker.
 
     return Scaffold(
       appBar: AppBar(title: const Text('Réglages')),
@@ -35,33 +37,31 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: thNotifier.setDanger,
           ),
           const Divider(),
-          SwitchListTile(
-            title: const Text('Mode simulation'),
-            subtitle: const Text('Émet une profondeur fake pour démo / dev'),
-            value: sim.enabled,
-            onChanged: simNotifier.setEnabled,
+          const ListTile(
+            title: Text('Mode simulation'),
+            subtitle:
+                Text('activé (Bluetooth viendra en v0.2)'),
           ),
-          if (sim.enabled)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  const Text('Scénario : '),
-                  const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: sim.scenario.name,
-                    items: SimulationScenario.values
-                        .map((s) =>
-                            DropdownMenuItem(value: s.name, child: Text(s.name)))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      simNotifier.setScenario(SimulationScenario.values.byName(v));
-                    },
-                  ),
-                ],
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const Text('Scénario : '),
+                const SizedBox(width: 8),
+                DropdownButton<String>(
+                  value: sim.scenario.name,
+                  items: SimulationScenario.values
+                      .map((s) =>
+                          DropdownMenuItem(value: s.name, child: Text(s.name)))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    simNotifier.setScenario(SimulationScenario.values.byName(v));
+                  },
+                ),
+              ],
             ),
+          ),
           const Divider(),
           ListTile(
             title: const Text('Unité'),

@@ -175,14 +175,15 @@ final depthLoggerProvider = Provider<DepthLogger>((ref) {
   final pos = ref.watch(positionStreamProvider.stream).map(
         (p) => p == null ? null : (p.latitude, p.longitude),
       );
-  final sim = ref.watch(simSelectionProvider).enabled;
+  // v0.1: depth is always sourced from the simulator. v0.2 will branch on
+  // Bluetooth availability.
   final logger = DepthLogger(
     logService: log,
     depthStream: depth,
     positionStream: pos,
     onCommit: () =>
         ref.read(depthLogVersionProvider.notifier).update((v) => v + 1),
-    source: sim ? SampleSource.simulated : SampleSource.real,
+    source: SampleSource.simulated,
   );
   logger.start();
   ref.onDispose(logger.stop);

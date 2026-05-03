@@ -15,10 +15,9 @@ void main() {
     expect(find.text('0.5 m'), findsOneWidget);
   });
 
-  testWidgets('shows simulation toggle and scenario picker', (tester) async {
+  testWidgets('shows simulation status and scenario picker', (tester) async {
     await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: SettingsScreen())));
     await tester.pumpAndSettle();
-    expect(find.byType(Switch), findsOneWidget);
     expect(find.text('Mode simulation'), findsOneWidget);
     expect(find.byType(DropdownButton<String>), findsOneWidget);
   });
