@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:projet_jetski/core/providers/app_providers.dart';
 import 'package:projet_jetski/core/services/alert_engine.dart';
-import 'package:projet_jetski/core/services/depth_source.dart';
 import 'package:projet_jetski/core/services/simulation_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
