@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/depth_sample.dart';
 import '../services/alert_engine.dart';
 import '../services/depth_log_service.dart';
+import '../services/depth_logger.dart';
 import '../services/depth_source.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
@@ -164,3 +165,26 @@ final allSamplesProvider = FutureProvider<List<DepthSample>>((ref) async {
 
 /// Bumped each time a new sample is persisted, to invalidate allSamplesProvider.
 final depthLogVersionProvider = StateProvider<int>((ref) => 0);
+
+/// Activates depth logging when watched. Lifetime tied to ProviderScope.
+final depthLoggerProvider = Provider<DepthLogger>((ref) {
+  final log = ref.watch(depthLogServiceProvider);
+  // Open the DB lazily; the logger awaits each add so a missing open() throws.
+  unawaited(log.open());
+  final depth = ref.watch(depthStreamProvider.stream);
+  final pos = ref.watch(positionStreamProvider.stream).map(
+        (p) => p == null ? null : (p.latitude, p.longitude),
+      );
+  final sim = ref.watch(simSelectionProvider).enabled;
+  final logger = DepthLogger(
+    logService: log,
+    depthStream: depth,
+    positionStream: pos,
+    onCommit: () =>
+        ref.read(depthLogVersionProvider.notifier).update((v) => v + 1),
+    source: sim ? SampleSource.simulated : SampleSource.real,
+  );
+  logger.start();
+  ref.onDispose(logger.stop);
+  return logger;
+});
