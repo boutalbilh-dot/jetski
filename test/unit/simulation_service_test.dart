@@ -20,13 +20,29 @@ void main() {
     test('manual scenario emits the value set via setManualDepth', () async {
       final svc = SimulationService(
         scenario: SimulationScenario.manual,
+        tickInterval: const Duration(seconds: 1), // long interval — we want setManualDepth to drive emission
+      );
+      await svc.start();
+      // Listen before mutating to avoid any race; setManualDepth pushes immediately.
+      final next = svc.depthMeters.first;
+      svc.setManualDepth(0.7);
+      expect(await next, 0.7);
+      await svc.stop();
+    });
+
+    test('stop() closes the stream', () async {
+      final svc = SimulationService(
+        scenario: SimulationScenario.approach,
         tickInterval: const Duration(milliseconds: 1),
       );
       await svc.start();
-      svc.setManualDepth(0.7);
-      final v = await svc.depthMeters.first;
-      expect(v, 0.7);
+      // Take 1 sample to confirm it's emitting
+      await svc.depthMeters.first;
       await svc.stop();
+      // After stop(), the stream is done. .toList() returns the buffered events
+      // and resolves once the stream closes. With no new subscriber, simply check
+      // the stream is closed by re-listening and waiting for done.
+      await svc.depthMeters.toList(); // does not hang
     });
 
     test('implements DepthSource', () {

@@ -21,7 +21,14 @@ class SimulationService implements DepthSource {
   @override
   Stream<double> get depthMeters => _controller.stream;
 
-  void setManualDepth(double v) => _manual = v;
+  void setManualDepth(double v) {
+    _manual = v;
+    if (scenario == SimulationScenario.manual &&
+        _timer != null &&
+        !_controller.isClosed) {
+      _controller.add(v);
+    }
+  }
 
   @override
   Future<void> start() async {
@@ -36,13 +43,16 @@ class SimulationService implements DepthSource {
   Future<void> stop() async {
     _timer?.cancel();
     _timer = null;
+    if (!_controller.isClosed) {
+      await _controller.close();
+    }
   }
 
   void _emit() {
     final v = switch (scenario) {
       SimulationScenario.approach => _approach(_tick),
       SimulationScenario.suddenDanger => _sudden(_tick),
-      SimulationScenario.unstable => _unstable(_tick),
+      SimulationScenario.unstable => _unstable(),
       SimulationScenario.manual => _manual,
     };
     _controller.add(v);
@@ -59,7 +69,7 @@ class SimulationService implements DepthSource {
     return t < 30 ? 3.0 : 0.3;
   }
 
-  double _unstable(int t) {
+  double _unstable() {
     // 2 m baseline +/- 0.6 m noise.
     return 2.0 + (_rand.nextDouble() - 0.5) * 1.2;
   }

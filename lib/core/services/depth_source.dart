@@ -6,6 +6,8 @@ abstract class DepthSource {
   /// Begin emitting. Throws StateError if already started.
   Future<void> start();
 
-  /// Stop emitting and release resources.
+  /// Stop emitting and release resources. After calling, the depthMeters stream
+  /// will emit done; the source is no longer usable. To resume, create a new
+  /// instance.
   Future<void> stop();
 }
