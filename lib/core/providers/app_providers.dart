@@ -49,8 +49,10 @@ final thresholdsProvider =
     StateNotifierProvider<ThresholdsNotifier, Thresholds>((ref) => ThresholdsNotifier());
 
 /// Currently selected depth source. Defaults to simulation.
-final depthSourceProvider = StateProvider<DepthSource>((ref) {
-  return SimulationService(scenario: SimulationScenario.approach);
+final depthSourceProvider = Provider<DepthSource>((ref) {
+  final sim = ref.watch(simSelectionProvider);
+  // For v0.1 we always return a simulation source. v0.2 will add Bluetooth selection.
+  return SimulationService(scenario: sim.scenario);
 });
 
 final locationServiceProvider = Provider((ref) => LocationService());
@@ -101,3 +103,40 @@ final alertNotifierProvider = Provider<void>((ref) {
     svc.handleTransition(newLevel);
   });
 });
+
+enum DepthUnit { meters, feet }
+
+class UnitNotifier extends StateNotifier<DepthUnit> {
+  static const _key = 'unit';
+  UnitNotifier() : super(DepthUnit.meters) {
+    _load();
+  }
+  Future<void> _load() async {
+    final p = await SharedPreferences.getInstance();
+    state = DepthUnit.values.byName(p.getString(_key) ?? 'meters');
+  }
+  Future<void> setUnit(DepthUnit u) async {
+    state = u;
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_key, u.name);
+  }
+}
+
+final unitProvider = StateNotifierProvider<UnitNotifier, DepthUnit>((ref) => UnitNotifier());
+
+class SimSelection {
+  final bool enabled;
+  final SimulationScenario scenario;
+  const SimSelection({this.enabled = true, this.scenario = SimulationScenario.approach});
+  SimSelection copyWith({bool? enabled, SimulationScenario? scenario}) =>
+      SimSelection(enabled: enabled ?? this.enabled, scenario: scenario ?? this.scenario);
+}
+
+class SimSelectionNotifier extends StateNotifier<SimSelection> {
+  SimSelectionNotifier() : super(const SimSelection());
+  void setEnabled(bool v) => state = state.copyWith(enabled: v);
+  void setScenario(SimulationScenario s) => state = state.copyWith(scenario: s);
+}
+
+final simSelectionProvider =
+    StateNotifierProvider<SimSelectionNotifier, SimSelection>((ref) => SimSelectionNotifier());
