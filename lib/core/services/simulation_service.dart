@@ -1,0 +1,66 @@
+import 'dart:async';
+import 'dart:math';
+import 'depth_source.dart';
+
+enum SimulationScenario { approach, suddenDanger, unstable, manual }
+
+class SimulationService implements DepthSource {
+  final SimulationScenario scenario;
+  final Duration tickInterval;
+  final _controller = StreamController<double>.broadcast();
+  Timer? _timer;
+  int _tick = 0;
+  double _manual = 2.0;
+  final _rand = Random(42);
+
+  SimulationService({
+    required this.scenario,
+    this.tickInterval = const Duration(milliseconds: 200),
+  });
+
+  @override
+  Stream<double> get depthMeters => _controller.stream;
+
+  void setManualDepth(double v) => _manual = v;
+
+  @override
+  Future<void> start() async {
+    if (_timer != null) {
+      throw StateError('SimulationService already started');
+    }
+    _tick = 0;
+    _timer = Timer.periodic(tickInterval, (_) => _emit());
+  }
+
+  @override
+  Future<void> stop() async {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void _emit() {
+    final v = switch (scenario) {
+      SimulationScenario.approach => _approach(_tick),
+      SimulationScenario.suddenDanger => _sudden(_tick),
+      SimulationScenario.unstable => _unstable(_tick),
+      SimulationScenario.manual => _manual,
+    };
+    _controller.add(v);
+    _tick++;
+  }
+
+  double _approach(int t) {
+    // Start at 5 m, lose 0.05 m per tick, floor at 0.1 m.
+    return max(0.1, 5.0 - t * 0.05);
+  }
+
+  double _sudden(int t) {
+    // 3 m for the first 30 ticks, then drop instantly to 0.3 m.
+    return t < 30 ? 3.0 : 0.3;
+  }
+
+  double _unstable(int t) {
+    // 2 m baseline +/- 0.6 m noise.
+    return 2.0 + (_rand.nextDouble() - 0.5) * 1.2;
+  }
+}
