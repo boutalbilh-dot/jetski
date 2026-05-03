@@ -11,8 +11,11 @@ class DepthScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final depth = ref.watch(depthStreamProvider).valueOrNull;
     final level = ref.watch(alertLevelProvider).valueOrNull ?? AlertLevel.safe;
+    final unit = ref.watch(unitProvider);
     return Scaffold(
-      body: SafeArea(child: DepthDisplay(depth: depth, level: level)),
+      body: SafeArea(
+        child: DepthDisplay(depth: depth, level: level, unit: unit),
+      ),
     );
   }
 }
