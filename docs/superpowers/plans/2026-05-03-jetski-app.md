@@ -350,7 +350,7 @@ void main() {
     });
 
     test('returns null when missing $ prefix', () {
-      expect(NmeaSentence.tryParse('SDDPT,3.5,0.5*1D'), isNull);
+      expect(NmeaSentence.tryParse('SDDPT,3.5,0.5*54'), isNull);
     });
 
     test('returns null when missing checksum delimiter', () {
