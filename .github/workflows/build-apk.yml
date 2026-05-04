@@ -1,9 +1,15 @@
 name: build-apk
 
-# Manual trigger only — won't fire on every push. Run from the Actions
-# tab in GitHub when you want a fresh APK published.
+# Triggers:
+#   - workflow_dispatch: manual button (visible once the workflow
+#     also exists on the default branch).
+#   - push of a tag matching `build-*`: triggers a build without
+#     touching the default branch.
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "build-*"
 
 concurrency:
   group: build-apk-${{ github.ref }}
