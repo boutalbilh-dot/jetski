@@ -1,8 +1,8 @@
 name: build-apk
 
+# Manual trigger only — won't fire on every push. Run from the Actions
+# tab in GitHub when you want a fresh APK published.
 on:
-  push:
-    branches: [main, "feature/**"]
   workflow_dispatch:
 
 concurrency:
