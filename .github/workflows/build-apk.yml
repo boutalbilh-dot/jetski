@@ -56,11 +56,16 @@ jobs:
 
       - name: Build APK (release; fall back to debug if R8 fails)
         run: |
-          set -e
-          if ! flutter build apk --release --verbose 2>&1 | tee build-release.log; then
+          # pipefail is required so the pipe to tee doesn't hide flutter's
+          # actual exit code — without it, the conditional fall-through to
+          # debug never fires.
+          set -eo pipefail
+          if ! { flutter build apk --release --verbose 2>&1 | tee build-release.log; }; then
             echo "::warning::Release build failed — falling back to debug build"
             flutter build apk --debug --verbose 2>&1 | tee build-debug.log
           fi
+          echo "--- All APKs produced ---"
+          find . -name "*.apk" -not -path "*/.git/*" 2>/dev/null || true
 
       - name: Upload build logs (always)
         if: always()
@@ -74,12 +79,24 @@ jobs:
 
       - name: Stage APK with branch + sha in filename
         run: |
+          set -e
           mkdir -p dist
-          # Whichever variant succeeded above lands here.
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             dist/projet-jetski-${{ github.ref_name }}-${{ github.sha }}.apk 2>/dev/null || true
-          cp build/app/outputs/flutter-apk/app-debug.apk \
-             dist/projet-jetski-${{ github.ref_name }}-${{ github.sha }}-debug.apk 2>/dev/null || true
+          # Locate the APK regardless of where Flutter put it (the project's
+          # custom build dir lives at `<repo>/build/...` not `android/build/...`).
+          release=$(find . -name "app-release.apk" -path "*/flutter-apk/*" -not -path "*/.git/*" 2>/dev/null | head -1)
+          debug=$(find . -name "app-debug.apk" -path "*/flutter-apk/*" -not -path "*/.git/*" 2>/dev/null | head -1)
+          if [ -n "$release" ]; then
+            cp "$release" "dist/projet-jetski-${{ github.ref_name }}-${{ github.sha }}.apk"
+            echo "Staged release APK from $release"
+          fi
+          if [ -n "$debug" ]; then
+            cp "$debug" "dist/projet-jetski-${{ github.ref_name }}-${{ github.sha }}-debug.apk"
+            echo "Staged debug APK from $debug"
+          fi
+          if [ -z "$release" ] && [ -z "$debug" ]; then
+            echo "::error::No APK found anywhere — build must have silently failed"
+            exit 1
+          fi
           ls -la dist/
 
       - name: Upload APK as workflow artifact
