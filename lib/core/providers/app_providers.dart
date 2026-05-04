@@ -63,10 +63,16 @@ class SourceConfigNotifier extends StateNotifier<SourceConfig> {
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
     final modeStr = p.getString(_PrefsKeys.sourceMode);
-    final mode = SourceMode.values
+    var mode = SourceMode.values
             .where((m) => m.name == modeStr)
             .firstOrNull ??
         SourceMode.simulation;
+    // BT mode is no longer exposed in this build (flutter_bluetooth_serial
+    // dropped, no BLE bridge yet). Migrate any legacy install silently.
+    if (mode == SourceMode.bluetooth) {
+      mode = SourceMode.simulation;
+      await p.setString(_PrefsKeys.sourceMode, mode.name);
+    }
     final addr = p.getString(_PrefsKeys.bluetoothAddress);
     final port = p.getInt(_PrefsKeys.wifiPort) ?? kDefaultWifiNmeaPort;
     state = SourceConfig(mode: mode, bluetoothAddress: addr, wifiPort: port);

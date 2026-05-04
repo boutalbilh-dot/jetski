@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/services/simulation_service.dart';
 import '../../l10n/generated/app_localizations.dart';
-import 'bluetooth_picker.dart';
 import 'threshold_slider.dart';
 
 String scenarioLabel(AppLocalizations l10n, SimulationScenario s) =>
@@ -63,10 +62,6 @@ class SettingsScreen extends ConsumerWidget {
                     label: Text(l10n.sourceModeSim),
                     icon: const Icon(Icons.science_outlined)),
                 ButtonSegment(
-                    value: SourceMode.bluetooth,
-                    label: Text(l10n.sourceModeBt),
-                    icon: const Icon(Icons.bluetooth)),
-                ButtonSegment(
                     value: SourceMode.wifi,
                     label: Text(l10n.sourceModeWifi),
                     icon: const Icon(Icons.wifi)),
@@ -85,24 +80,12 @@ class SettingsScreen extends ConsumerWidget {
                 scenario: sim.scenario,
                 onScenarioChanged: simNotifier.setScenario,
               ),
-            SourceMode.bluetooth => _BluetoothPanel(
-                address: source.bluetoothAddress,
-                onPick: () async {
-                  final addr = await showDialog<String>(
-                    context: context,
-                    builder: (_) => const BluetoothPickerDialog(),
-                  );
-                  if (addr != null) {
-                    await sourceNotifier.setBluetoothAddress(addr);
-                  }
-                },
-                onForget: () => sourceNotifier.setBluetoothAddress(null),
-              ),
             SourceMode.wifi => _WifiPanel(
                 port: source.wifiPort,
                 onPortChanged: sourceNotifier.setWifiPort,
               ),
             SourceMode.replay => const _ReplayPanel(),
+            SourceMode.bluetooth => const SizedBox.shrink(),
           },
           const Divider(),
           ListTile(
@@ -159,44 +142,6 @@ class _SimulationPanel extends StatelessWidget {
             ],
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _BluetoothPanel extends StatelessWidget {
-  final String? address;
-  final VoidCallback onPick;
-  final VoidCallback onForget;
-  const _BluetoothPanel({
-    required this.address,
-    required this.onPick,
-    required this.onForget,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Column(
-      children: [
-        ListTile(
-          title: Text(l10n.bluetoothPanelTitle),
-          subtitle: Text(address ?? l10n.noDeviceSelected),
-          trailing: TextButton.icon(
-            icon: const Icon(Icons.search),
-            label: Text(l10n.chooseDevice),
-            onPressed: onPick,
-          ),
-        ),
-        if (address != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextButton.icon(
-              icon: const Icon(Icons.link_off),
-              label: Text(l10n.forgetDevice),
-              onPressed: onForget,
-            ),
-          ),
       ],
     );
   }

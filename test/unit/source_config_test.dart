@@ -26,7 +26,7 @@ void main() {
   test('source mode + address persist across container restarts', () async {
     final c1 = ProviderContainer();
     addTearDown(c1.dispose);
-    await c1.read(sourceConfigProvider.notifier).setMode(SourceMode.bluetooth);
+    await c1.read(sourceConfigProvider.notifier).setMode(SourceMode.wifi);
     await c1
         .read(sourceConfigProvider.notifier)
         .setBluetoothAddress('AA:BB:CC:DD:EE:FF');
@@ -36,8 +36,23 @@ void main() {
     c2.read(sourceConfigProvider);
     await Future<void>.delayed(const Duration(milliseconds: 50));
     final cfg = c2.read(sourceConfigProvider);
-    expect(cfg.mode, SourceMode.bluetooth);
+    expect(cfg.mode, SourceMode.wifi);
     expect(cfg.bluetoothAddress, 'AA:BB:CC:DD:EE:FF');
+  });
+
+  test('legacy bluetooth mode is silently migrated to simulation on load',
+      () async {
+    final p1 = await SharedPreferences.getInstance();
+    await p1.setString('src.mode', 'bluetooth');
+
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    c.read(sourceConfigProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(c.read(sourceConfigProvider).mode, SourceMode.simulation);
+
+    final p2 = await SharedPreferences.getInstance();
+    expect(p2.getString('src.mode'), 'simulation');
   });
 
   test('clearing the bluetooth address removes the persisted entry', () async {
