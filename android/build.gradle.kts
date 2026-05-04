@@ -11,17 +11,13 @@ val newBuildDir: Directory =
         .get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
-subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-// Workaround for legacy Flutter plugins (e.g. flutter_bluetooth_serial 0.4.0)
-// that don't declare a `namespace` in their android/build.gradle. AGP 8+
-// requires every library to have one — inject a fallback after evaluation.
+// Register the namespace workaround BEFORE evaluationDependsOn(":app") —
+// otherwise the project is already evaluated by the time our afterEvaluate
+// hook is registered, and Gradle 8 throws InvalidUserCodeException.
+//
+// AGP 8+ requires every Android library to declare a `namespace`. Some
+// legacy Flutter plugins (compileSdk 30 era) lack one — fall back to a
+// synthetic namespace per subproject so the build resolves.
 subprojects {
     afterEvaluate {
         if (project.plugins.hasPlugin("com.android.library")) {
@@ -34,6 +30,14 @@ subprojects {
             }
         }
     }
+}
+
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
