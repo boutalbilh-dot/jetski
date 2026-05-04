@@ -77,6 +77,21 @@ jobs:
             build-debug.log
           if-no-files-found: ignore
 
+      - name: Publish failure logs as a public release (debugging)
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-fail-${{ github.run_id }}
+          name: Build failure logs (run ${{ github.run_id }})
+          body: |
+            Logs from a failing build, attached so they can be fetched
+            without GitHub auth (artifact downloads require login).
+          files: |
+            build-release.log
+            build-debug.log
+          prerelease: true
+          make_latest: false
+
       - name: Stage APK with branch + sha in filename
         run: |
           set -e
