@@ -48,13 +48,29 @@ jobs:
         run: dart run flutter_launcher_icons
         continue-on-error: true
 
+      - name: Show toolchain versions
+        run: |
+          flutter --version
+          java -version
+          ./android/gradlew -v -p android || true
+
       - name: Build APK (release; fall back to debug if R8 fails)
         run: |
           set -e
-          if ! flutter build apk --release; then
-            echo "::warning::Release build failed (likely R8) — falling back to debug build"
-            flutter build apk --debug
+          if ! flutter build apk --release --verbose 2>&1 | tee build-release.log; then
+            echo "::warning::Release build failed — falling back to debug build"
+            flutter build apk --debug --verbose 2>&1 | tee build-debug.log
           fi
+
+      - name: Upload build logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build-release.log
+            build-debug.log
+          if-no-files-found: ignore
 
       - name: Stage APK with branch + sha in filename
         run: |
