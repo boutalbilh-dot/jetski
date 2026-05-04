@@ -42,8 +42,8 @@ class ConnectionIndicator extends ConsumerWidget {
     };
 
     return Material(
-      color: Colors.black.withValues(alpha: 0.55),
-      borderRadius: BorderRadius.circular(16),
+      color: const Color(0x8C000000), // ~55% black, precomputed → const
+      borderRadius: const BorderRadius.all(Radius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(

@@ -73,7 +73,7 @@ void main() {
         tickInterval: const Duration(milliseconds: 1),
       );
       await svc.start();
-      expect(() => svc.start(), throwsStateError);
+      expect(svc.start, throwsStateError);
       await svc.stop();
     });
   });

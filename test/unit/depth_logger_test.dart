@@ -81,6 +81,44 @@ void main() {
     await log.close();
   });
 
+  test('coalesces overlapping flushes (no duplicate writes)', () async {
+    final log = DepthLogService();
+    await log.openInMemory();
+    final depth = StreamController<double>();
+    final pos = StreamController<_Pos?>();
+    var commits = 0;
+
+    final logger = DepthLogger(
+      logService: log,
+      depthStream: depth.stream,
+      positionStream: pos.stream.map((p) => p == null ? null : (p.lat, p.lng)),
+      onCommit: () => commits++,
+      source: SampleSource.simulated,
+      flushInterval: const Duration(milliseconds: 5),
+    );
+    await logger.start();
+
+    // Push samples faster than the flush interval can drain them.
+    for (var i = 0; i < 20; i++) {
+      depth.add(i.toDouble());
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await logger.stop();
+    await depth.close();
+    await pos.close();
+
+    final all = await log.all();
+    // Every sample must land exactly once — the coalescing flush guard must
+    // not drop or double-write rows even when ticks overlap I/O.
+    expect(all, hasLength(20));
+    expect(all.map((s) => s.depthMeters).toList(),
+        List.generate(20, (i) => i.toDouble()));
+    // At least one commit fired; not strictly equal to one batch since real
+    // timing is platform-dependent.
+    expect(commits, greaterThanOrEqualTo(1));
+    await log.close();
+  });
+
   test('flushes the remainder of the buffer on stop()', () async {
     final log = DepthLogService();
     await log.openInMemory();

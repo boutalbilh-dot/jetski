@@ -59,6 +59,7 @@ class SimulationService implements DepthSource {
   }
 
   void _emit() {
+    if (_controller.isClosed) return;
     final v = switch (_scenario) {
       SimulationScenario.approach => _approach(_tick),
       SimulationScenario.suddenDanger => _sudden(_tick),

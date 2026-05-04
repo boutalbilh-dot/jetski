@@ -71,6 +71,7 @@ class ReplayDepthSource implements DepthSource {
   void _emitAndScheduleNext() {
     if (_controller.isClosed) return;
     if (_samples.isEmpty) return;
+    if (_idx < 0 || _idx >= _samples.length) return;
 
     _controller.add(_samples[_idx].depthMeters);
     final nextIdx = _idx + 1;

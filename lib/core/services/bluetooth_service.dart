@@ -8,12 +8,17 @@ import 'nmea_parser.dart';
 enum BluetoothConnectionState { disconnected, connecting, connected, error }
 
 class BluetoothService implements DepthSource {
+  /// Hard cap on the line-assembly buffer. NMEA sentences are <80 bytes, so
+  /// 4 KiB of unterminated junk means we're not actually receiving NMEA —
+  /// drop it to avoid unbounded growth on a wedged stream.
+  static const int _maxBufferBytes = 4096;
+
   final String address; // MAC address chosen by user
   BluetoothConnection? _connection;
   StreamSubscription<Uint8List>? _inputSub;
   final _depthController = StreamController<double>.broadcast();
   final _stateController = StreamController<BluetoothConnectionState>.broadcast();
-  String _buffer = '';
+  final StringBuffer _buffer = StringBuffer();
   BluetoothConnectionState _state = BluetoothConnectionState.disconnected;
   String? _lastError;
 
@@ -59,15 +64,23 @@ class BluetoothService implements DepthSource {
   }
 
   void _onBytes(List<int> bytes) {
-    _buffer += utf8.decode(bytes, allowMalformed: true);
-    while (true) {
-      final nl = _buffer.indexOf('\n');
-      if (nl == -1) break;
-      final line = _buffer.substring(0, nl);
-      _buffer = _buffer.substring(nl + 1);
-      final d = NmeaParser.depthMeters(line);
-      if (d != null) _depthController.add(d);
+    _buffer.write(utf8.decode(bytes, allowMalformed: true));
+    if (_buffer.length > _maxBufferBytes) {
+      _buffer.clear();
+      return;
     }
+    final s = _buffer.toString();
+    var start = 0;
+    while (true) {
+      final nl = s.indexOf('\n', start);
+      if (nl == -1) break;
+      final line = s.substring(start, nl);
+      start = nl + 1;
+      final d = NmeaParser.depthMeters(line);
+      if (d != null && !_depthController.isClosed) _depthController.add(d);
+    }
+    _buffer.clear();
+    if (start < s.length) _buffer.write(s.substring(start));
   }
 
   /// List all currently bonded Bluetooth devices.
@@ -81,7 +94,7 @@ class BluetoothService implements DepthSource {
     _inputSub = null;
     await _connection?.close();
     _connection = null;
-    _buffer = '';
+    _buffer.clear();
     _emitState(BluetoothConnectionState.disconnected);
     if (!_stateController.isClosed) await _stateController.close();
     if (!_depthController.isClosed) await _depthController.close();

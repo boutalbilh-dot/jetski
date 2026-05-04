@@ -21,7 +21,10 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       body: Stack(
         children: [
-          Positioned.fill(child: _screens[_index]),
+          // IndexedStack keeps each screen's element tree alive across tab
+          // switches — the map keeps its camera state and the depth display
+          // keeps its stream subscription warm.
+          Positioned.fill(child: IndexedStack(index: _index, children: _screens)),
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             right: 12,

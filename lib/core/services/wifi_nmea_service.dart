@@ -18,13 +18,16 @@ enum WifiConnectionState { idle, listening, error }
 /// The user must connect the phone to the device's WiFi network (or the
 /// shared boat network) before the service can receive datagrams.
 class WifiNmeaService implements DepthSource {
+  /// Hard cap on the line-assembly buffer (see BluetoothService for rationale).
+  static const int _maxBufferBytes = 4096;
+
   final int port;
 
   RawDatagramSocket? _socket;
   StreamSubscription<RawSocketEvent>? _socketSub;
   final _depthController = StreamController<double>.broadcast();
   final _stateController = StreamController<WifiConnectionState>.broadcast();
-  String _buffer = '';
+  final StringBuffer _buffer = StringBuffer();
 
   WifiConnectionState _state = WifiConnectionState.idle;
   String? _lastError;
@@ -71,15 +74,23 @@ class WifiNmeaService implements DepthSource {
     if (event != RawSocketEvent.read) return;
     final dg = _socket?.receive();
     if (dg == null) return;
-    _buffer += utf8.decode(dg.data, allowMalformed: true);
-    while (true) {
-      final nl = _buffer.indexOf('\n');
-      if (nl == -1) break;
-      final line = _buffer.substring(0, nl);
-      _buffer = _buffer.substring(nl + 1);
-      final d = NmeaParser.depthMeters(line);
-      if (d != null) _depthController.add(d);
+    _buffer.write(utf8.decode(dg.data, allowMalformed: true));
+    if (_buffer.length > _maxBufferBytes) {
+      _buffer.clear();
+      return;
     }
+    final s = _buffer.toString();
+    var start = 0;
+    while (true) {
+      final nl = s.indexOf('\n', start);
+      if (nl == -1) break;
+      final line = s.substring(start, nl);
+      start = nl + 1;
+      final d = NmeaParser.depthMeters(line);
+      if (d != null && !_depthController.isClosed) _depthController.add(d);
+    }
+    _buffer.clear();
+    if (start < s.length) _buffer.write(s.substring(start));
   }
 
   @override
@@ -88,7 +99,7 @@ class WifiNmeaService implements DepthSource {
     _socketSub = null;
     _socket?.close();
     _socket = null;
-    _buffer = '';
+    _buffer.clear();
     _emitState(WifiConnectionState.idle);
     if (!_stateController.isClosed) await _stateController.close();
     if (!_depthController.isClosed) await _depthController.close();

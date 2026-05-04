@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import '../models/depth_sample.dart';
@@ -6,31 +8,47 @@ class DepthLogService {
   static const retentionDuration = Duration(days: 7);
 
   Database? _db;
+  Future<void>? _opening;
 
-  Future<void> open() async {
-    if (_db != null) return;
-    final dir = await getDatabasesPath();
-    _db = await openDatabase(
-      p.join(dir, 'jetski_depth_log.db'),
-      version: 1,
-      onConfigure: _configure,
-      onCreate: _migrate,
-    );
-    await _trimToRetention();
+  Future<void> open() {
+    if (_db != null) return Future.value();
+    return _opening ??= () async {
+      try {
+        final dir = await getDatabasesPath();
+        _db = await openDatabase(
+          p.join(dir, 'jetski_depth_log.db'),
+          version: 1,
+          onConfigure: _configure,
+          onCreate: _migrate,
+        );
+        // Don't block app startup on retention pruning — it's a maintenance
+        // task that can run after the first frame is on screen. The first
+        // writes are queued by sqflite anyway, so ordering is preserved.
+        unawaited(_trimToRetention());
+      } finally {
+        _opening = null;
+      }
+    }();
   }
 
   /// In-memory variant for tests. Each call gets a private connection
   /// (singleInstance: false), so parallel test files don't share state via
   /// sqflite_ffi's shared `:memory:` cache.
-  Future<void> openInMemory() async {
-    if (_db != null) return;
-    _db = await openDatabase(
-      inMemoryDatabasePath,
-      version: 1,
-      singleInstance: false,
-      onConfigure: _configure,
-      onCreate: _migrate,
-    );
+  Future<void> openInMemory() {
+    if (_db != null) return Future.value();
+    return _opening ??= () async {
+      try {
+        _db = await openDatabase(
+          inMemoryDatabasePath,
+          version: 1,
+          singleInstance: false,
+          onConfigure: _configure,
+          onCreate: _migrate,
+        );
+      } finally {
+        _opening = null;
+      }
+    }();
   }
 
   Future<void> _configure(Database db) async {
@@ -56,10 +74,12 @@ class DepthLogService {
   }
 
   Future<void> _trimToRetention() async {
+    final db = _db;
+    if (db == null) return;
     final cutoff = DepthSample.encodeTimestamp(
       DateTime.now().toUtc().subtract(retentionDuration),
     );
-    await _db!.delete(
+    await db.delete(
       DepthSample.tableName,
       where: '${DepthSample.colTimestamp} < ?',
       whereArgs: [cutoff],

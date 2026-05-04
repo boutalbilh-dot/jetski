@@ -3,6 +3,11 @@ import '../models/depth_sample.dart';
 import 'depth_log_service.dart';
 
 class DepthLogger {
+  /// Hard cap on in-memory buffered samples. At 10 Hz this is ~5 minutes of
+  /// readings — well above the 2 s flush interval, so we only ever hit it if
+  /// SQLite is wedged. Drop-oldest keeps memory bounded without crashing.
+  static const int _bufferCap = 3000;
+
   final DepthLogService logService;
   final Stream<double> depthStream;
   final Stream<(double, double)?> positionStream;
@@ -15,6 +20,7 @@ class DepthLogger {
   Timer? _flushTimer;
   (double, double)? _lastPos;
   final List<DepthSample> _buffer = [];
+  Future<void>? _inflightFlush;
 
   DepthLogger({
     required this.logService,
@@ -36,6 +42,11 @@ class DepthLogger {
   }
 
   void _enqueue(double depth) {
+    if (_buffer.length >= _bufferCap) {
+      // Drop the oldest 10% in one shot — far cheaper than removeAt(0) on
+      // every insert (which is O(n) per call).
+      _buffer.removeRange(0, _bufferCap ~/ 10);
+    }
     _buffer.add(DepthSample(
       timestamp: DateTime.now().toUtc(),
       depthMeters: depth,
@@ -45,12 +56,23 @@ class DepthLogger {
     ));
   }
 
-  Future<void> _flush() async {
-    if (_buffer.isEmpty) return;
+  Future<void> _flush() {
+    // Coalesce: if a flush is already running, wait for it instead of starting
+    // another. Prevents overlapping inserts and lets stop() reliably drain.
+    if (_inflightFlush != null) return _inflightFlush!;
+    if (_buffer.isEmpty) return Future.value();
     final batch = List<DepthSample>.of(_buffer);
     _buffer.clear();
-    await logService.addAll(batch);
-    onCommit();
+    final f = () async {
+      try {
+        await logService.addAll(batch);
+        onCommit();
+      } finally {
+        _inflightFlush = null;
+      }
+    }();
+    _inflightFlush = f;
+    return f;
   }
 
   Future<void> stop() async {
@@ -60,6 +82,9 @@ class DepthLogger {
     await _posSub?.cancel();
     _depthSub = null;
     _posSub = null;
+    // Wait for any flush already in flight, then drain anything that arrived
+    // between its start and now.
+    if (_inflightFlush != null) await _inflightFlush;
     await _flush();
   }
 }

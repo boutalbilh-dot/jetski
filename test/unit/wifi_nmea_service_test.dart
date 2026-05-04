@@ -103,7 +103,7 @@ void main() {
     final port = await _pickFreePort();
     final svc = WifiNmeaService(port: port);
     await svc.start();
-    expect(() => svc.start(), throwsStateError);
+    expect(svc.start, throwsStateError);
     await svc.stop();
   });
 }

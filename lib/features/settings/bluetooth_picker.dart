@@ -56,6 +56,8 @@ class _BluetoothPickerDialogState extends State<BluetoothPickerDialog> {
             }
             return ListView.builder(
               shrinkWrap: true,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: false,
               itemCount: devices.length,
               itemBuilder: (_, i) {
                 final d = devices[i];

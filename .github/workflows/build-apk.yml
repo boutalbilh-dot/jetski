@@ -1,0 +1,81 @@
+name: build-apk
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Generate native splash
+        run: dart run flutter_native_splash:create
+
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
+        continue-on-error: true
+
+      - name: Build APK (release; fall back to debug if R8 fails)
+        run: |
+          set -e
+          if ! flutter build apk --release; then
+            echo "::warning::Release build failed (likely R8) — falling back to debug build"
+            flutter build apk --debug
+          fi
+
+      - name: Stage APK with branch + sha in filename
+        run: |
+          mkdir -p dist
+          # Whichever variant succeeded above lands here.
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             dist/projet-jetski-${{ github.ref_name }}-${{ github.sha }}.apk 2>/dev/null || true
+          cp build/app/outputs/flutter-apk/app-debug.apk \
+             dist/projet-jetski-${{ github.ref_name }}-${{ github.sha }}-debug.apk 2>/dev/null || true
+          ls -la dist/
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: projet-jetski-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish to "latest-apk" release (publicly downloadable)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: Latest APK build
+          body: |
+            APK auto-built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
+            Install on Android: download the APK and tap to install (autoriser
+            "sources inconnues" si demandé).
+          files: dist/*.apk
+          prerelease: true
+          make_latest: false

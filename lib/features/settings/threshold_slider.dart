@@ -18,6 +18,7 @@ class ThresholdSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final clamped = value.clamp(min, max);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -27,10 +28,10 @@ class ThresholdSlider extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label, style: Theme.of(context).textTheme.titleMedium),
-              Text('${value.toStringAsFixed(1)} m'),
+              Text('${clamped.toStringAsFixed(1)} m'),
             ],
           ),
-          Slider(value: value, min: min, max: max, onChanged: onChanged),
+          Slider(value: clamped, min: min, max: max, onChanged: onChanged),
         ],
       ),
     );

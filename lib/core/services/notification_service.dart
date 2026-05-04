@@ -26,8 +26,8 @@ class RealBackend implements NotificationBackend {
 
   @override
   Future<void> vibratePattern(List<int> pattern) async {
-    _hasVibrator ??= await Vibration.hasVibrator();
-    if (_hasVibrator!) {
+    final has = _hasVibrator ??= await Vibration.hasVibrator();
+    if (has == true) {
       await Vibration.vibrate(pattern: pattern);
     }
   }

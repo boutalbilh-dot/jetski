@@ -388,12 +388,42 @@ final positionStreamProvider = StreamProvider<Position?>((ref) {
 /// track to the current ride, so old persisted samples don't bloat memory.
 final sessionStartProvider = Provider<DateTime>((ref) => DateTime.now().toUtc());
 
+/// In-memory accumulator backing [allSamplesProvider] — avoids re-loading the
+/// entire session from SQLite on every commit (which is O(N) per 2 s tick).
+/// Holds the latest snapshot plus a cursor so the next refresh only fetches
+/// rows newer than the last one we saw.
+class _SessionSamplesCache {
+  List<DepthSample> samples = const [];
+  int lastCursorMs = 0;
+}
+
+final _sessionSamplesCacheProvider =
+    Provider<_SessionSamplesCache>((ref) => _SessionSamplesCache());
+
 /// Samples from the current session, refreshed when the logger commits a batch.
+/// Internally fetches only the delta since the last commit, then appends to a
+/// cached list — keeps the map redraw cost flat as the session grows.
 final allSamplesProvider = FutureProvider<List<DepthSample>>((ref) async {
   ref.watch(depthLogVersionProvider);
   final svc = ref.watch(depthLogServiceProvider);
   final start = ref.watch(sessionStartProvider);
-  return svc.range(from: start, to: DateTime.now().toUtc());
+  final cache = ref.watch(_sessionSamplesCacheProvider);
+
+  final fromMs = cache.lastCursorMs == 0
+      ? DepthSample.encodeTimestamp(start)
+      : cache.lastCursorMs + 1;
+  final now = DateTime.now().toUtc();
+  if (DepthSample.encodeTimestamp(now) < fromMs) return cache.samples;
+
+  final delta = await svc.range(
+    from: DateTime.fromMillisecondsSinceEpoch(fromMs, isUtc: true),
+    to: now,
+  );
+  if (delta.isEmpty) return cache.samples;
+
+  cache.samples = [...cache.samples, ...delta];
+  cache.lastCursorMs = DepthSample.encodeTimestamp(cache.samples.last.timestamp);
+  return cache.samples;
 });
 
 /// Bumped each time the logger commits a batch, to invalidate allSamplesProvider.
