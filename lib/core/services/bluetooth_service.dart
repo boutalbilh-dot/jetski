@@ -1,101 +1,61 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+
 import 'depth_source.dart';
-import 'nmea_parser.dart';
+
+// NOTE: flutter_bluetooth_serial 0.4.0 (the only Classic SPP plugin we'd
+// found) is unmaintained and fails to build under AGP 8 (no `namespace`
+// declared, deprecated jcenter / compileSdkVersion 30). Until we migrate
+// the BT pipeline to a maintained alternative (BLE via flutter_blue_plus,
+// or a different SPP package), the Bluetooth source is a no-op stub: the
+// rest of the pipeline still wires up cleanly, but `start()` raises an
+// error state that surfaces via the connection indicator.
 
 enum BluetoothConnectionState { disconnected, connecting, connected, error }
 
-class BluetoothService implements DepthSource {
-  /// Hard cap on the line-assembly buffer. NMEA sentences are <80 bytes, so
-  /// 4 KiB of unterminated junk means we're not actually receiving NMEA —
-  /// drop it to avoid unbounded growth on a wedged stream.
-  static const int _maxBufferBytes = 4096;
+/// Stand-in for a real bonded Bluetooth device — keeps the picker UI
+/// compiling against a stable type without depending on the legacy plugin.
+class BluetoothDevice {
+  final String? name;
+  final String address;
+  const BluetoothDevice({this.name, required this.address});
+}
 
-  final String address; // MAC address chosen by user
-  BluetoothConnection? _connection;
-  StreamSubscription<Uint8List>? _inputSub;
+class BluetoothService implements DepthSource {
+  static const _unsupportedMessage =
+      'Bluetooth source is not available in this build. '
+      'Use Simulation, WiFi or Replay mode instead.';
+
+  final String address;
   final _depthController = StreamController<double>.broadcast();
   final _stateController = StreamController<BluetoothConnectionState>.broadcast();
-  final StringBuffer _buffer = StringBuffer();
   BluetoothConnectionState _state = BluetoothConnectionState.disconnected;
-  String? _lastError;
+  final String _lastError = _unsupportedMessage;
 
   BluetoothService(this.address);
 
   @override
   Stream<double> get depthMeters => _depthController.stream;
 
-  Stream<BluetoothConnectionState> get connectionState => _stateController.stream;
+  Stream<BluetoothConnectionState> get connectionState =>
+      _stateController.stream;
   BluetoothConnectionState get currentState => _state;
   String? get lastError => _lastError;
 
-  void _emitState(BluetoothConnectionState s) {
-    _state = s;
-    if (!_stateController.isClosed) _stateController.add(s);
-  }
-
   @override
   Future<void> start() async {
-    if (_connection != null) {
-      throw StateError('BluetoothService already started');
-    }
-    _emitState(BluetoothConnectionState.connecting);
-    try {
-      _connection = await BluetoothConnection.toAddress(address);
-      _inputSub = _connection!.input!.listen(
-        _onBytes,
-        onDone: () {
-          _emitState(BluetoothConnectionState.disconnected);
-          unawaited(stop());
-        },
-        onError: (Object e) {
-          _lastError = e.toString();
-          _emitState(BluetoothConnectionState.error);
-        },
-      );
-      _emitState(BluetoothConnectionState.connected);
-    } catch (e) {
-      _lastError = e.toString();
-      _emitState(BluetoothConnectionState.error);
-      rethrow;
+    _state = BluetoothConnectionState.error;
+    if (!_stateController.isClosed) {
+      _stateController.add(BluetoothConnectionState.error);
     }
   }
 
-  void _onBytes(List<int> bytes) {
-    _buffer.write(utf8.decode(bytes, allowMalformed: true));
-    if (_buffer.length > _maxBufferBytes) {
-      _buffer.clear();
-      return;
-    }
-    final s = _buffer.toString();
-    var start = 0;
-    while (true) {
-      final nl = s.indexOf('\n', start);
-      if (nl == -1) break;
-      final line = s.substring(start, nl);
-      start = nl + 1;
-      final d = NmeaParser.depthMeters(line);
-      if (d != null && !_depthController.isClosed) _depthController.add(d);
-    }
-    _buffer.clear();
-    if (start < s.length) _buffer.write(s.substring(start));
-  }
-
-  /// List all currently bonded Bluetooth devices.
-  static Future<List<BluetoothDevice>> bondedDevices() {
-    return FlutterBluetoothSerial.instance.getBondedDevices();
-  }
+  /// Always returns an empty list in this build — the picker handles the
+  /// empty case by telling the user to pair a device first.
+  static Future<List<BluetoothDevice>> bondedDevices() async => const [];
 
   @override
   Future<void> stop() async {
-    await _inputSub?.cancel();
-    _inputSub = null;
-    await _connection?.close();
-    _connection = null;
-    _buffer.clear();
-    _emitState(BluetoothConnectionState.disconnected);
+    _state = BluetoothConnectionState.disconnected;
     if (!_stateController.isClosed) await _stateController.close();
     if (!_depthController.isClosed) await _depthController.close();
   }

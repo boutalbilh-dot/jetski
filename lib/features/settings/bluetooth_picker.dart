@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+
 import '../../core/services/bluetooth_service.dart';
 import '../../l10n/generated/app_localizations.dart';
 
