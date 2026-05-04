@@ -122,6 +122,12 @@ abstract class AppLocalizations {
   /// **'Map'**
   String get mapTitle;
 
+  /// No description provided for @mapRecenterTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Center on me'**
+  String get mapRecenterTooltip;
+
   /// No description provided for @depthLabel.
   ///
   /// In en, this message translates to:

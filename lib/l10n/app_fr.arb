@@ -4,6 +4,7 @@
   "navMap": "Carte",
   "navSettings": "Réglages",
   "mapTitle": "Carte",
+  "mapRecenterTooltip": "Centrer sur moi",
   "depthLabel": "PROFONDEUR",
   "settingsTitle": "Réglages",
   "thresholdWarning": "Seuil avertissement",

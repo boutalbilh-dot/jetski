@@ -21,6 +21,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get mapTitle => 'Carte';
 
   @override
+  String get mapRecenterTooltip => 'Centrer sur moi';
+
+  @override
   String get depthLabel => 'PROFONDEUR';
 
   @override

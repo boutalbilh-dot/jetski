@@ -29,8 +29,10 @@ PolylineLayer trackPolylineLayer(
     if (run.length >= 2 && color != null) {
       polylines.add(Polyline(
         points: List<LatLng>.of(run),
-        strokeWidth: 4,
+        strokeWidth: 5,
         color: color,
+        strokeCap: StrokeCap.round,
+        strokeJoin: StrokeJoin.round,
       ));
     }
   }

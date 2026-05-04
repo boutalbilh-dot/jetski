@@ -5,6 +5,7 @@
   "navMap": "Map",
   "navSettings": "Settings",
   "mapTitle": "Map",
+  "mapRecenterTooltip": "Center on me",
   "depthLabel": "DEPTH",
   "settingsTitle": "Settings",
   "thresholdWarning": "Warning threshold",
